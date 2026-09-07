@@ -1,0 +1,57 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # macOS is not "one more platform" here, it is THE platform: /bin/bash on
+  # macOS is 3.2.57, and this script is written against it. A regression like
+  # printf "%.0f" -- which once silently zeroed every gauge -- runs fine on
+  # the bash 5 of a Linux runner and fails only on the machine that matters.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash version (must be 3.2)
+        run: |
+          /bin/bash --version | head -1
+          case "$(/bin/bash -c 'echo $BASH_VERSION')" in
+            3.2*) echo "ok: bash 3.2, the version this targets" ;;
+            *) echo "NOTE: runner bash is no longer 3.2 -- the 3.2 guarantee is now untested" ;;
+          esac
+      - run: ./tests/run-tests.sh
+
+  # Linux runs the same suite on bash 5 with GNU date and GNU awk, which is
+  # what catches the reverse mistake: a BSD-only flag that only ever ran here.
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./tests/run-tests.sh
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: shellcheck statusline.sh install.sh preview.sh tests/run-tests.sh tools/*.sh
+
+  # The README embeds two generated SVGs. Nothing stops someone changing what
+  # the line looks like and forgetting to regenerate them, and the drift is
+  # invisible in review -- the images just quietly show the old design. The
+  # generator is byte-reproducible (pinned clock and TZ), so a diff here means
+  # the images are stale, full stop.
+  preview-is-current:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tools/make-preview.sh
+      - name: docs/ must match the committed images
+        run: |
+          if ! git diff --exit-code -- docs/; then
+            echo "::error::docs/ is stale -- run 'sh tools/make-preview.sh' and commit the result"
+            exit 1
+          fi

@@ -1,0 +1,7 @@
+# Git for Windows defaults to core.autocrlf=true, which would check these out
+# with CRLF endings. A bash script with CRLF does not merely warn -- every
+# line ends in a stray \r, so "read -r model" becomes an invalid identifier
+# and the script collapses. Force LF everywhere; nothing in this repository
+# is consumed by a tool that wants CRLF.
+* text=auto eol=lf
+*.svg text eol=lf

@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="721" height="154" viewBox="0 0 721.0 154.0" font-family="ui-monospace, SFMono-Regular, Menlo, DejaVu Sans Mono, Consolas, monospace" font-size="15.0">
+<rect width="721.0" height="154.0" rx="7" fill="#15191f"/>
+<text x="14.0" y="25.0" fill="#6b7280" font-size="12">the same line at 92 columns, then at 70 where the reset times go</text>
+<rect x="14.0" y="38.0" width="153.0" height="26.0" fill="#c7c7c7"/>
+<rect x="167.0" y="38.0" width="279.0" height="26.0" fill="#2744c7"/>
+<rect x="446.0" y="38.0" width="108.0" height="26.0" fill="#ffaf00"/>
+<rect x="554.0" y="38.0" width="144.0" height="26.0" fill="#080808"/>
+<text x="14.0" y="56.7" fill="#080808" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Opus 5 </text>
+<text x="86.0" y="56.7" fill="#585858" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1M xhigh</text>
+<text x="158.0" y="56.7" fill="#080808" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="167.0,38.0 176.0,51.0 167.0,64.0" fill="#c7c7c7"/>
+<text x="176.0" y="56.7" fill="#e4e4e4" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /</text>
+<text x="194.0" y="56.7" fill="#bcbcbc" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">t</text>
+<text x="203.0" y="56.7" fill="#e4e4e4" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">/</text>
+<text x="212.0" y="56.7" fill="#eeeeee" textLength="225.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">claude-statusline-preview</text>
+<text x="437.0" y="56.7" fill="#e4e4e4" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="446.0,38.0 455.0,51.0 446.0,64.0" fill="#2744c7"/>
+<text x="455.0" y="56.7" fill="#14191e" textLength="99.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> main ⇡1 ✗ </text>
+<polygon points="554.0,38.0 563.0,51.0 554.0,64.0" fill="#ffaf00"/>
+<text x="563.0" y="56.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
+<text x="626.0" y="56.7" fill="#585858" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· $17/h</text>
+<text x="689.0" y="56.7" fill="#00c5c7" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="698.0,38.0 707.0,51.0 698.0,64.0" fill="#080808"/>
+<rect x="14.0" y="64.0" width="684.0" height="26.0" fill="#303030"/>
+<text x="14.0" y="82.7" fill="#bcbcbc" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  </text>
+<text x="32.0" y="82.7" fill="#808080" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ctx </text>
+<polygon points="70.5,70.5 76.2,70.5 74.5,83.5 68.8,83.5" fill="#54c149"/>
+<polygon points="79.5,70.5 85.2,70.5 83.5,83.5 77.8,83.5" fill="#484c56"/>
+<polygon points="88.5,70.5 94.2,70.5 92.5,83.5 86.8,83.5" fill="#484c56"/>
+<polygon points="97.5,70.5 103.2,70.5 101.5,83.5 95.8,83.5" fill="#484c56"/>
+<polygon points="106.5,70.5 112.2,70.5 110.5,83.5 104.8,83.5" fill="#484c56"/>
+<polygon points="115.5,70.5 121.2,70.5 119.5,83.5 113.8,83.5" fill="#484c56"/>
+<polygon points="124.5,70.5 130.2,70.5 128.6,83.5 122.8,83.5" fill="#484c56"/>
+<polygon points="133.4,70.5 139.2,70.5 137.6,83.5 131.8,83.5" fill="#484c56"/>
+<text x="140.0" y="82.7" fill="#54c149" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 17%</text>
+<text x="176.0" y="82.7" fill="#585858" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> · </text>
+<text x="203.0" y="82.7" fill="#808080" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">5h </text>
+<polygon points="232.4,70.5 238.2,70.5 236.6,83.5 230.8,83.5" fill="#54c149"/>
+<polygon points="241.4,70.5 247.2,70.5 245.6,83.5 239.8,83.5" fill="#86bc33"/>
+<polygon points="250.4,70.5 256.2,70.5 254.6,83.5 248.8,83.5" fill="#484c56"/>
+<polygon points="259.4,70.5 265.2,70.5 263.6,83.5 257.8,83.5" fill="#484c56"/>
+<polygon points="268.4,70.5 274.2,70.5 272.6,83.5 266.8,83.5" fill="#484c56"/>
+<polygon points="277.4,70.5 283.2,70.5 281.6,83.5 275.8,83.5" fill="#484c56"/>
+<polygon points="286.4,70.5 292.2,70.5 290.6,83.5 284.8,83.5" fill="#484c56"/>
+<polygon points="295.4,70.5 301.2,70.5 299.6,83.5 293.8,83.5" fill="#484c56"/>
+<text x="302.0" y="82.7" fill="#86bc33" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 23%</text>
+<text x="338.0" y="82.7" fill="#808080" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> (15:33)</text>
+<text x="410.0" y="82.7" fill="#585858" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> · </text>
+<text x="437.0" y="82.7" fill="#808080" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">7d </text>
+<polygon points="466.4,70.5 472.2,70.5 470.6,83.5 464.8,83.5" fill="#54c149"/>
+<polygon points="475.4,70.5 481.2,70.5 479.6,83.5 473.8,83.5" fill="#86bc33"/>
+<polygon points="484.4,70.5 490.2,70.5 488.6,83.5 482.8,83.5" fill="#b8b81e"/>
+<polygon points="493.4,70.5 499.2,70.5 497.6,83.5 491.8,83.5" fill="#eab308"/>
+<polygon points="502.4,70.5 508.2,70.5 506.6,83.5 500.8,83.5" fill="#f1930f"/>
+<polygon points="511.4,70.5 517.2,70.5 515.5,83.5 509.8,83.5" fill="#f97316"/>
+<polygon points="520.5,70.5 526.2,70.5 524.5,83.5 518.8,83.5" fill="#484c56"/>
+<polygon points="529.5,70.5 535.2,70.5 533.5,83.5 527.8,83.5" fill="#484c56"/>
+<text x="536.0" y="82.7" fill="#f97316" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 73%</text>
+<text x="572.0" y="82.7" fill="#808080" textLength="126.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> (mon 17:00)  </text>
+<polygon points="698.0,64.0 707.0,77.0 698.0,90.0" fill="#303030"/>
+<rect x="14.0" y="90.0" width="153.0" height="26.0" fill="#c7c7c7"/>
+<rect x="167.0" y="90.0" width="279.0" height="26.0" fill="#2744c7"/>
+<rect x="446.0" y="90.0" width="108.0" height="26.0" fill="#ffaf00"/>
+<rect x="554.0" y="90.0" width="72.0" height="26.0" fill="#080808"/>
+<text x="14.0" y="108.7" fill="#080808" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Opus 5 </text>
+<text x="86.0" y="108.7" fill="#585858" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1M xhigh</text>
+<text x="158.0" y="108.7" fill="#080808" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="167.0,90.0 176.0,103.0 167.0,116.0" fill="#c7c7c7"/>
+<text x="176.0" y="108.7" fill="#e4e4e4" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> /</text>
+<text x="194.0" y="108.7" fill="#bcbcbc" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">t</text>
+<text x="203.0" y="108.7" fill="#e4e4e4" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">/</text>
+<text x="212.0" y="108.7" fill="#eeeeee" textLength="225.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">claude-statusline-preview</text>
+<text x="437.0" y="108.7" fill="#e4e4e4" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="446.0,90.0 455.0,103.0 446.0,116.0" fill="#2744c7"/>
+<text x="455.0" y="108.7" fill="#14191e" textLength="99.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> main ⇡1 ✗ </text>
+<polygon points="554.0,90.0 563.0,103.0 554.0,116.0" fill="#ffaf00"/>
+<text x="563.0" y="108.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
+<polygon points="626.0,90.0 635.0,103.0 626.0,116.0" fill="#080808"/>
+<rect x="14.0" y="116.0" width="504.0" height="26.0" fill="#303030"/>
+<text x="14.0" y="134.7" fill="#bcbcbc" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  </text>
+<text x="32.0" y="134.7" fill="#808080" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ctx </text>
+<polygon points="70.5,122.5 76.2,122.5 74.5,135.5 68.8,135.5" fill="#54c149"/>
+<polygon points="79.5,122.5 85.2,122.5 83.5,135.5 77.8,135.5" fill="#484c56"/>
+<polygon points="88.5,122.5 94.2,122.5 92.5,135.5 86.8,135.5" fill="#484c56"/>
+<polygon points="97.5,122.5 103.2,122.5 101.5,135.5 95.8,135.5" fill="#484c56"/>
+<polygon points="106.5,122.5 112.2,122.5 110.5,135.5 104.8,135.5" fill="#484c56"/>
+<polygon points="115.5,122.5 121.2,122.5 119.5,135.5 113.8,135.5" fill="#484c56"/>
+<polygon points="124.5,122.5 130.2,122.5 128.6,135.5 122.8,135.5" fill="#484c56"/>
+<polygon points="133.4,122.5 139.2,122.5 137.6,135.5 131.8,135.5" fill="#484c56"/>
+<text x="140.0" y="134.7" fill="#54c149" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 17%</text>
+<text x="176.0" y="134.7" fill="#585858" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> · </text>
+<text x="203.0" y="134.7" fill="#808080" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">5h </text>
+<polygon points="232.4,122.5 238.2,122.5 236.6,135.5 230.8,135.5" fill="#54c149"/>
+<polygon points="241.4,122.5 247.2,122.5 245.6,135.5 239.8,135.5" fill="#86bc33"/>
+<polygon points="250.4,122.5 256.2,122.5 254.6,135.5 248.8,135.5" fill="#484c56"/>
+<polygon points="259.4,122.5 265.2,122.5 263.6,135.5 257.8,135.5" fill="#484c56"/>
+<polygon points="268.4,122.5 274.2,122.5 272.6,135.5 266.8,135.5" fill="#484c56"/>
+<polygon points="277.4,122.5 283.2,122.5 281.6,135.5 275.8,135.5" fill="#484c56"/>
+<polygon points="286.4,122.5 292.2,122.5 290.6,135.5 284.8,135.5" fill="#484c56"/>
+<polygon points="295.4,122.5 301.2,122.5 299.6,135.5 293.8,135.5" fill="#484c56"/>
+<text x="302.0" y="134.7" fill="#86bc33" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 23%</text>
+<text x="338.0" y="134.7" fill="#585858" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> · </text>
+<text x="365.0" y="134.7" fill="#808080" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">7d </text>
+<polygon points="394.4,122.5 400.2,122.5 398.6,135.5 392.8,135.5" fill="#54c149"/>
+<polygon points="403.4,122.5 409.2,122.5 407.6,135.5 401.8,135.5" fill="#86bc33"/>
+<polygon points="412.4,122.5 418.2,122.5 416.6,135.5 410.8,135.5" fill="#b8b81e"/>
+<polygon points="421.4,122.5 427.2,122.5 425.6,135.5 419.8,135.5" fill="#eab308"/>
+<polygon points="430.4,122.5 436.2,122.5 434.6,135.5 428.8,135.5" fill="#f1930f"/>
+<polygon points="439.4,122.5 445.2,122.5 443.6,135.5 437.8,135.5" fill="#f97316"/>
+<polygon points="448.4,122.5 454.2,122.5 452.6,135.5 446.8,135.5" fill="#484c56"/>
+<polygon points="457.4,122.5 463.2,122.5 461.6,135.5 455.8,135.5" fill="#484c56"/>
+<text x="464.0" y="134.7" fill="#f97316" textLength="54.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 73%  </text>
+<polygon points="518.0,116.0 527.0,129.0 518.0,142.0" fill="#303030"/>
+</svg>
