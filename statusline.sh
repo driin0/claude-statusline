@@ -14,6 +14,7 @@
 # exact same codepoint as POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR in ~/.p10k.zsh,
 # so the status line and the shell prompt use an identical shape. It needs
 # the Nerd Font the user already has (POWERLEVEL9K_MODE=nerdfont-complete).
+# Set CLAUDE_STATUSLINE_PLAIN=1 to render the line without a Nerd Font at all.
 
 # --- Field extraction: one awk pass over the payload ------------------------
 # This used to be a dozen "printf | sed | head" pipelines, about thirty forks
@@ -432,7 +433,24 @@ build_bar() {
 # also happens to be what "dirty" means.
 # printf -v, not $(printf ...): command substitution forks a subshell, and
 # these two ran on every render for no reason at all.
-printf -v SEP '\356\202\260'   # U+E0B0, same as POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR
+# U+E0B0 lives in the Unicode private use area, which makes it this line's one
+# hard font dependency -- and its failure mode is not the honest tofu box you
+# would hope for. On Windows the same codepoints are squatted on by Wingdings,
+# Webdings and Symbol, so a terminal without a patched font falls back to one
+# of those and draws an unrelated dingbat that looks entirely deliberate --
+# nobody reads it as "missing font". CLAUDE_STATUSLINE_PLAIN=1 swaps in U+258C,
+# the left half block, which ships in every stock monospace font (Cascadia
+# Mono, Consolas, Menlo, DejaVu Sans Mono). It is drawn with the same fg/bg
+# pair as the arrow -- previous segment's color as foreground, next segment's
+# as background -- so the two colors still meet inside the one cell and in the
+# same order, and the boundary reads as a straight edge instead of a point.
+# It is also one column wide, so row_width()'s "one column per separator"
+# stays true and not a single layout number changes.
+if [ -n "${CLAUDE_STATUSLINE_PLAIN:-}" ]; then
+  printf -v SEP '\342\226\214'   # U+258C LEFT HALF BLOCK
+else
+  printf -v SEP '\356\202\260'   # U+E0B0, same as POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR
+fi
 # Between gauges: U+00B7, at 240 -- a shade below the labels, so it groups the
 # three readings without joining the competition for attention. Written in
 # octal for the same reason as SEP: a multibyte glyph pasted into a file is

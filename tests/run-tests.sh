@@ -74,6 +74,10 @@ run_win() { # $1 = USERPROFILE, $2 = payload -- Windows needs it pinned:
   printf '%s' "$2" | env -u COLUMNS USERPROFILE="$1" bash "$script" 2>"$err" | plain
 }
 
+run_plain() { # $1 = payload, rendered with the no-Nerd-Font escape hatch on
+  printf '%s' "$1" | env -u COLUMNS CLAUDE_STATUSLINE_PLAIN=1 bash "$script" 2>"$err" | plain
+}
+
 cols() { # $1 = one plain line -> its column count, independent of the locale
   # UTF-8 continuation bytes (0x80-0xbf) are dropped, which leaves exactly one
   # byte per character whether or not wc counts characters here. The bolt is
@@ -497,6 +501,41 @@ no_stderr "an unreadable task file prints nothing"
 chmod 644 "$race_dir/3.json"
 
 rm -rf "$CLAUDE_CONFIG_DIR"
+echo "== the line without a Nerd Font (CLAUDE_STATUSLINE_PLAIN) =="
+# U+E0B0 is the line's only private-use codepoint, and the private use area is
+# not empty on Windows: Wingdings, Wingdings 2, Wingdings 3 and Webdings cover
+# U+F020-U+F0FF, and Segoe UI Symbol carries U+E0B0 itself. So a missing Nerd
+# Font does not draw an honest tofu box -- it draws a plausible wrong glyph
+# from whatever font DirectWrite falls back to, which nobody reads as "missing
+# font". The escape hatch has to hold two things at once: the arrow is gone,
+# and the replacement is exactly as wide, or row_width()'s "one column per
+# separator" quietly stops being true and the two-row split fires at the wrong
+# size -- a defect that only shows up on someone else's terminal.
+pe=$(cat "$here/payload-example.json")
+dflt=$(run "$pe")
+pln=$(run_plain "$pe")
+
+check  "plain uses U+258C"          "$pln"  "$(printf '\342\226\214')"
+refute "plain drops U+E0B0"         "$pln"  "$(printf '\356\202\260')"
+check  "default keeps U+E0B0"       "$dflt" "$(printf '\356\202\260')"
+check  "plain keeps the gauges"     "$pln"  "ctx $(bar 1) 17%"
+check  "plain keeps the cost"       "$pln"  "\$9.60"
+
+# The whole point: same columns, so every layout number stays valid. Bracketed
+# because check() is a substring test and "10" sits inside "100".
+check "plain is exactly as wide" "[$(cols "$dflt")]" "[$(cols "$pln")]"
+
+# ...and therefore the row split fires at the same width, not one column off.
+narrow_d=$(rows "$(run_at 100 "$pe")")
+narrow_p=$(rows "$(printf '%s' "$pe" | COLUMNS=100 CLAUDE_STATUSLINE_PLAIN=1 bash "$script" | plain)")
+check "plain splits into the same rows" "[$narrow_d]" "[$narrow_p]"
+
+# An unset variable is the default, and an empty one is not "on": the hatch is
+# opt-in, so a stray "export CLAUDE_STATUSLINE_PLAIN=" must not silently
+# change the look of everyone's line.
+empty=$(printf '%s' "$pe" | env -u COLUMNS CLAUDE_STATUSLINE_PLAIN= bash "$script" | plain)
+check "empty value is not opt-in" "$empty" "$(printf '\356\202\260')"
+
 rm -f "$err"
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
