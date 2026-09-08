@@ -94,7 +94,7 @@ tmps() { # $1 = directory -> how many half-written temporaries it holds
 
 echo "== a fresh install, with the config dir where it is expected =="
 h=$(home_dir); mkdir -p "$h/.claude"
-out=$(install_in "$h" "")
+install_in "$h" "" > /dev/null
 check "the symlink lands in the config dir" "$(readlink "$h/.claude/statusline-command.sh")" "$source_script"
 # $HOME stays a literal: Claude Code expands it, and this file gets copied
 # between accounts more often than anyone expects.
@@ -108,7 +108,7 @@ echo "== CLAUDE_CONFIG_DIR, the case that was wrong =="
 # that only ever used CLAUDE_CONFIG_DIR does not exist. Nothing reports that:
 # the status line simply renders nothing.
 h=$(home_dir); cfg="$h/.config/claude"; mkdir -p "$cfg"
-out=$(install_in "$h" "$cfg")
+install_in "$h" "$cfg" > /dev/null
 check "the symlink follows the config dir" "$(readlink "$cfg/statusline-command.sh")" "$source_script"
 check "and so does the command" "$(command_in "$cfg/settings.json")" \
   'bash "$HOME/.config/claude/statusline-command.sh"'
@@ -118,7 +118,7 @@ echo "== a config dir outside the home =="
 # Nothing to abbreviate against, so the absolute path goes in as it is rather
 # than a $HOME-relative one that would resolve somewhere else entirely.
 h=$(home_dir); cfg=$(home_dir)
-out=$(install_in "$h" "$cfg")
+install_in "$h" "$cfg" > /dev/null
 check "absolute path in the command" "$(command_in "$cfg/settings.json")" "bash \"$cfg/statusline-command.sh\""
 refute "no \$HOME in it" "$(command_in "$cfg/settings.json")" '$HOME'
 
@@ -127,7 +127,7 @@ echo "== an unnormalised config dir is resolved before it is written down =="
 # settings.json as-is, where Claude Code resolves it against a working
 # directory nobody chose. Same failure as above, arrived at differently.
 h=$(home_dir); mkdir -p "$h/.config/claude"
-out=$(install_in "$h" "$h/.config/../.config/claude")
+install_in "$h" "$h/.config/../.config/claude" > /dev/null
 check "the command carries the clean path" "$(command_in "$h/.config/claude/settings.json")" \
   'bash "$HOME/.config/claude/statusline-command.sh"'
 refute "no .. left in it" "$(command_in "$h/.config/claude/settings.json")" '..'
@@ -157,13 +157,19 @@ check "and said out loud"     "$out" "custom command kept"
 equals "no backup was created" "$(baks "$h/.claude")" "0"
 check "other keys are untouched" "$(cat "$h/.claude/settings.json")" '"theme": "dark"'
 
-echo "== the same script named absolutely also counts as installed =="
+echo "== the same script named another working way is normalised once =="
+# An absolute path does run the script, but it is not what this writes, so it
+# is rewritten into the $HOME form -- once. The second run must then be a
+# no-op, or the installer would churn a .bak on every invocation.
 h=$(home_dir); mkdir -p "$h/.claude"
 install_in "$h" "" > /dev/null
 settings_with "$h/.claude/settings.json" "bash \"$h/.claude/statusline-command.sh\""
 out=$(install_in "$h" "")
-check "left alone"            "$out" "custom command kept"
-equals "no backup was created" "$(baks "$h/.claude")" "0"
+check  "rewritten into the $HOME form" "$(command_in "$h/.claude/settings.json")" \
+  'bash "$HOME/.claude/statusline-command.sh"'
+out=$(install_in "$h" "")
+check  "and then settles"     "$out" "already points at the status line"
+equals "one backup, not two"  "$(baks "$h/.claude")" "1"
 
 echo "== a command pointing somewhere else is replaced =="
 # The other half: leaving a command that does NOT run this script would make
@@ -175,18 +181,34 @@ check "rewritten"                "$(command_in "$h/.claude/settings.json")" 'bas
 equals "with a backup"            "$(baks "$h/.claude")" "1"
 check "and the rest of the file" "$(cat "$h/.claude/settings.json")" '"theme": "dark"'
 
-echo "== every spelling of the home directory is the same file =="
-# Recognising only the spelling this script writes would rewrite the other two,
-# which is the original defect wearing a different hat. ${HOME} and ~ are both
-# ordinary things to type into settings.json by hand.
-for spelling in '${HOME}/.claude/statusline-command.sh' '~/.claude/statusline-command.sh'; do
+echo "== what counts as a customisation, and what counts as broken =="
+# Kept: anything that contains, verbatim, the command this writes. That is the
+# documented case -- the README tells people to add a CLAUDE_STATUSLINE_PLAIN=1
+# prefix -- plus wrappers and redirects, which are the same shape.
+for custom in 'CLAUDE_STATUSLINE_PLAIN=1 bash "$HOME/.claude/statusline-command.sh"' \
+              'bash "$HOME/.claude/statusline-command.sh" 2>/dev/null'; do
   h=$(home_dir); mkdir -p "$h/.claude"
   install_in "$h" "" > /dev/null
-  custom="CLAUDE_STATUSLINE_PLAIN=1 bash \"$spelling\""
   settings_with "$h/.claude/settings.json" "$custom"
   out=$(install_in "$h" "")
-  check  "$spelling is kept"   "$(command_in "$h/.claude/settings.json")" "$custom"
-  equals "and not backed up"   "$(baks "$h/.claude")" "0"
+  check  "kept: $custom"     "$(command_in "$h/.claude/settings.json")" "$custom"
+  check  "and said out loud" "$out" "custom command kept"
+  equals "no backup"         "$(baks "$h/.claude")" "0"
+done
+
+# Repaired: spellings that name the file but do not survive being run. Neither
+# ~ nor $HOME expands inside the double quotes they sit in, so keeping these
+# would report success over a status line that renders nothing -- the same lie
+# the type check exists to prevent. An earlier version of this file asserted
+# the opposite, which is how the rule got narrowed to "contains $COMMAND".
+for broken in 'bash "~/.claude/statusline-command.sh"' \
+              "bash '\$HOME/.claude/statusline-command.sh'"; do
+  h=$(home_dir); mkdir -p "$h/.claude"
+  install_in "$h" "" > /dev/null
+  settings_with "$h/.claude/settings.json" "$broken"
+  out=$(install_in "$h" "")
+  check "repaired: $broken" "$(command_in "$h/.claude/settings.json")" \
+    'bash "$HOME/.claude/statusline-command.sh"'
 done
 
 echo "== a sibling that merely starts the same is not this script =="
@@ -212,6 +234,18 @@ printf '{"statusLine":{"type":"static","command":"bash \\"$HOME/.claude/statusli
 out=$(install_in "$h" "")
 check  "rewritten"   "$out" "updated"
 refute "type is gone" "$(cat "$h/.claude/settings.json")" '"static"'
+
+echo "== a backslash in the path still re-runs as a no-op =="
+# jq's @tsv escapes backslashes in the values it prints, while node and python
+# return them raw. With jq present, a command holding one came back doubled,
+# never compared equal to what was already in the file, and every re-run
+# rewrote settings.json and dropped another .bak -- the "re-running must be a
+# no-op" promise in the header of install.sh, broken by the reader.
+h=$(home_dir); cfg="$h/.claude\\x"; mkdir -p "$cfg"
+install_in "$h" "$cfg" > /dev/null
+out=$(install_in "$h" "$cfg")
+check  "the second run changes nothing" "$out" "already points at the status line"
+equals "and leaves no backup"           "$(baks "$cfg")" "0"
 
 echo "== a settings.json that does not parse =="
 # The read is a bare assignment from a command substitution, so its exit status
