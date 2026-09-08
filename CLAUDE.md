@@ -18,8 +18,9 @@ and leaving every other key alone. It honours `CLAUDE_CONFIG_DIR`.
 Then verify, in this order:
 
 ```sh
-./tests/run-tests.sh    # must print "N passed, 0 failed"
-./preview.sh            # renders the line without a live session
+./tests/run-tests.sh     # must print "N passed, 0 failed"
+./tests/install-tests.sh # the installer, exercised in a sandboxed HOME
+./preview.sh             # renders the line without a live session
 ```
 
 The new line appears on Claude Code's next render — no restart needed. If it
@@ -54,8 +55,11 @@ Linux the symlink makes `git pull` sufficient.
 
 ## If you change the script
 
-- `./tests/run-tests.sh` must stay green. Most assertions map to a bug that
-  actually shipped; the file header says which.
+- Both suites must stay green: `./tests/run-tests.sh` for the rendered line
+  and `./tests/install-tests.sh` for `install.sh`. Most assertions map to a bug
+  that actually shipped; each file header says which. They are separate because
+  the second one needs a filesystem -- a fake `HOME`, a config directory, a
+  `settings.json` to clobber -- and the first needs nothing but a payload.
 - Anything that changes what the line *looks like* means regenerating the
   README images: `sh tools/make-preview.sh`, then commit `docs/`. CI fails if
   they drift. The output is byte-reproducible on any machine, so a diff there

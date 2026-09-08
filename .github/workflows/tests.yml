@@ -23,6 +23,7 @@ jobs:
             *) echo "NOTE: runner bash is no longer 3.2 -- the 3.2 guarantee is now untested" ;;
           esac
       - run: ./tests/run-tests.sh
+      - run: ./tests/install-tests.sh
 
   # Linux runs the same suite on bash 5 with GNU date and GNU awk, which is
   # what catches the reverse mistake: a BSD-only flag that only ever ran here.
@@ -31,13 +32,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./tests/run-tests.sh
+      - run: ./tests/install-tests.sh
 
   shellcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - run: shellcheck statusline.sh install.sh preview.sh tests/run-tests.sh tools/*.sh
+      - run: shellcheck statusline.sh install.sh preview.sh tests/*.sh tools/*.sh
 
   # The README embeds two generated SVGs. Nothing stops someone changing what
   # the line looks like and forgetting to regenerate them, and the drift is
