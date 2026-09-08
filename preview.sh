@@ -11,12 +11,45 @@
 # PREVIEW_CWD overrides the directory shown, for checking the path shortening
 # on paths you are not standing in.
 #
+# PREVIEW_TASKS=3/7 renders the task segment with that many tasks done.
+#
 # The payload is built here rather than read from tests/payload-example.json
 # because the reset timestamps have to be in the future for the "(2h 33m)"
 # countdown to show anything; the fixture's are frozen. Keep the shape in
 # sync with tests/payload-example.json if the script starts reading new keys.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd)
+
+# The task segment reads a directory, not the payload, so previewing it means
+# building one. The config dir is pinned to a temp tree whether or not
+# PREVIEW_TASKS asks for tasks: without that, a real task list open on the
+# machine running this would leak into an image that is supposed to render
+# identically everywhere, and the drift check in CI would fail on a laptop for
+# reasons invisible in the diff. Same argument as the demo git repository in
+# tools/make-preview.sh.
+PREVIEW_CONFIG=${TMPDIR:-/tmp}/claude-statusline-preview-config
+rm -rf "$PREVIEW_CONFIG"
+mkdir -p "$PREVIEW_CONFIG/tasks/preview"
+trap 'rm -rf "$PREVIEW_CONFIG"' EXIT
+case ${PREVIEW_TASKS:-} in
+  */*)
+    _done=${PREVIEW_TASKS%%/*}
+    _total=${PREVIEW_TASKS##*/}
+    _i=1
+    while [ "$_i" -le "$_total" ]; do
+      # One task in progress while any remain, which is the state a session is
+      # actually in while you are looking at the line.
+      if   [ "$_i" -le "$_done" ];          then _st=completed
+      elif [ "$_i" -eq "$((_done + 1))" ];  then _st=in_progress
+      else                                       _st=pending
+      fi
+      printf '{"id":"%s","subject":"task %s","status":"%s"}' "$_i" "$_i" "$_st" \
+        > "$PREVIEW_CONFIG/tasks/preview/$_i.json"
+      _i=$((_i + 1))
+    done
+    ;;
+esac
+export CLAUDE_CONFIG_DIR="$PREVIEW_CONFIG"
 
 make_payload() { # $1 ctx%, $2 5h%, $3 7d%
   local now five seven
@@ -35,6 +68,7 @@ make_payload() { # $1 ctx%, $2 5h%, $3 7d%
   seven=$((now + 187200))
   cat <<EOF
 {"cwd":"${PREVIEW_CWD:-$PWD}",
+ "session_id":"preview",
  "model":{"id":"claude-opus-5[1m]","display_name":"Opus 5 (1M context)"},
  "version":"2.1.263",
  "effort":{"level":"xhigh"},

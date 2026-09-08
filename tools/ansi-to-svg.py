@@ -13,6 +13,8 @@ Two things are drawn as geometry rather than as glyphs, on purpose:
   * the gauge cells U+25B0/U+25B1, whose advance width is not reliably
     monospace even in fonts that do have them -- as polygons the bar can
     never come out ragged.
+  * the task icon U+2263, so the image never depends on which fonts the
+    reader happens to have -- and three bars are exactly what it is.
 
 Everything else is text, pinned to the monospace grid with textLength.
 
@@ -53,6 +55,7 @@ SGR = re.compile(r"\033\[([0-9;]*)m")
 def parse(line):
     """-> list of (char, fg rgb, bg rgb or None)."""
     cells, fg, bg, pos = [], TERM_FG, None, 0
+
     for m in SGR.finditer(line):
         for ch in line[pos:m.start()]:
             cells.append((ch, fg, bg))
@@ -93,6 +96,7 @@ CW, LH, FS = 9.0, 26.0, 15.0        # cell width, line height, font size
 PAD_X, PAD_Y = 14.0, 12.0
 ARROW = ""
 FILLED, EMPTY = "▰", "▱"
+TASKICON = "\u2263"
 SLANT = 1.7                          # parallelogram lean, inside the cell
 
 
@@ -140,6 +144,15 @@ def draw_line(cells, y):
             flush()
             out.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="%s"/>'
                        % (x, top, x + CW, (top + bot) / 2, x, bot, hex_(fg)))
+        elif ch == TASKICON:
+            flush()
+            # Three bars, which is what the glyph is, in the one cell the
+            # terminal advances for it.
+            x0, x1 = x + 1.0, x + CW - 1.0
+            for k in range(3):
+                out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="2" '
+                           'fill="%s"/>'
+                           % (x0, top + 9.0 + k * 4.5, x1 - x0, hex_(fg)))
         elif ch in (FILLED, EMPTY):
             flush()
             # The lean lives INSIDE the cell's bounding box, it is not added

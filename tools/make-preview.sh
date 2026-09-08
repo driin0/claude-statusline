@@ -34,6 +34,13 @@ git -C "$DEMO" -c user.name=preview -c user.email=preview@local commit -q --allo
 PREVIEW_CWD="$DEMO"
 export PREVIEW_CWD
 
+# The task segment only exists while a task list does, so the images that are
+# meant to show a working session ask for one. Fixed at 3 of 7 with the fourth
+# in progress: a state a real session passes through, and enough of both halves
+# that the count reads as a count.
+PREVIEW_TASKS=3/7
+export PREVIEW_TASKS
+
 # One typical line, then the gradient sweep, in a single image.
 {
   sh "$REPO/preview.sh" 17 23 73
@@ -54,6 +61,7 @@ PATHS_OUT="$REPO/docs/preview-paths.svg"
 # and the image has to be byte-identical everywhere for the CI check to mean
 # anything. $HOME is included on purpose -- it is the one that renders as a
 # bare "~".
+unset PREVIEW_TASKS   # this image is about the paths; nothing else should move
 for d in "$HOME/repos/demo-project" \
          "$HOME/work/acme/api/src/handlers" \
          "$HOME/.config/demo-editor" \
@@ -66,6 +74,8 @@ echo "==> $PATHS_OUT ($(wc -c < "$PATHS_OUT" | tr -d ' ') bytes)"
 
 # A third image: the same reading in a narrow pane, where the line splits.
 NARROW_OUT="$REPO/docs/preview-narrow.svg"
+PREVIEW_TASKS=3/7
+export PREVIEW_TASKS
 PREVIEW_CWD="$DEMO2"
 export PREVIEW_CWD
 {
