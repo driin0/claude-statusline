@@ -1,10 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="721" height="154" viewBox="0 0 721.0 154.0" font-family="ui-monospace, SFMono-Regular, Menlo, DejaVu Sans Mono, Consolas, monospace" font-size="15.0">
-<rect width="721.0" height="154.0" rx="7" fill="#15191f"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="793" height="154" viewBox="0 0 793.0 154.0" font-family="ui-monospace, SFMono-Regular, Menlo, DejaVu Sans Mono, Consolas, monospace" font-size="15.0">
+<rect width="793.0" height="154.0" rx="7" fill="#15191f"/>
 <text x="14.0" y="25.0" fill="#6b7280" font-size="12">the same line at 92 columns, then at 70 where the reset times go</text>
 <rect x="14.0" y="38.0" width="153.0" height="26.0" fill="#c7c7c7"/>
 <rect x="167.0" y="38.0" width="279.0" height="26.0" fill="#2744c7"/>
 <rect x="446.0" y="38.0" width="108.0" height="26.0" fill="#ffaf00"/>
-<rect x="554.0" y="38.0" width="144.0" height="26.0" fill="#080808"/>
+<rect x="554.0" y="38.0" width="72.0" height="26.0" fill="#585858"/>
+<rect x="626.0" y="38.0" width="144.0" height="26.0" fill="#080808"/>
 <text x="14.0" y="56.7" fill="#080808" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Opus 5 </text>
 <text x="86.0" y="56.7" fill="#585858" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1M xhigh</text>
 <text x="158.0" y="56.7" fill="#080808" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
@@ -17,10 +18,18 @@
 <polygon points="446.0,38.0 455.0,51.0 446.0,64.0" fill="#2744c7"/>
 <text x="455.0" y="56.7" fill="#14191e" textLength="99.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> main ⇡1 ✗ </text>
 <polygon points="554.0,38.0 563.0,51.0 554.0,64.0" fill="#ffaf00"/>
-<text x="563.0" y="56.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
-<text x="626.0" y="56.7" fill="#585858" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· $17/h</text>
-<text x="689.0" y="56.7" fill="#00c5c7" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
-<polygon points="698.0,38.0 707.0,51.0 698.0,64.0" fill="#080808"/>
+<text x="563.0" y="56.7" fill="#d0d0d0" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<rect x="573.0" y="47.0" width="7.0" height="2" fill="#a8a8a8"/>
+<rect x="573.0" y="51.5" width="7.0" height="2" fill="#a8a8a8"/>
+<rect x="573.0" y="56.0" width="7.0" height="2" fill="#a8a8a8"/>
+<text x="581.0" y="56.7" fill="#a8a8a8" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<text x="590.0" y="56.7" fill="#22c55e" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">3/7</text>
+<text x="617.0" y="56.7" fill="#d0d0d0" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="626.0,38.0 635.0,51.0 626.0,64.0" fill="#585858"/>
+<text x="635.0" y="56.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
+<text x="698.0" y="56.7" fill="#585858" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· $17/h</text>
+<text x="761.0" y="56.7" fill="#00c5c7" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="770.0,38.0 779.0,51.0 770.0,64.0" fill="#080808"/>
 <rect x="14.0" y="64.0" width="684.0" height="26.0" fill="#303030"/>
 <text x="14.0" y="82.7" fill="#bcbcbc" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  </text>
 <text x="32.0" y="82.7" fill="#808080" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ctx </text>
@@ -61,7 +70,8 @@
 <rect x="14.0" y="90.0" width="153.0" height="26.0" fill="#c7c7c7"/>
 <rect x="167.0" y="90.0" width="279.0" height="26.0" fill="#2744c7"/>
 <rect x="446.0" y="90.0" width="108.0" height="26.0" fill="#ffaf00"/>
-<rect x="554.0" y="90.0" width="72.0" height="26.0" fill="#080808"/>
+<rect x="554.0" y="90.0" width="72.0" height="26.0" fill="#585858"/>
+<rect x="626.0" y="90.0" width="72.0" height="26.0" fill="#080808"/>
 <text x="14.0" y="108.7" fill="#080808" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Opus 5 </text>
 <text x="86.0" y="108.7" fill="#585858" textLength="72.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1M xhigh</text>
 <text x="158.0" y="108.7" fill="#080808" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
@@ -74,8 +84,16 @@
 <polygon points="446.0,90.0 455.0,103.0 446.0,116.0" fill="#2744c7"/>
 <text x="455.0" y="108.7" fill="#14191e" textLength="99.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> main ⇡1 ✗ </text>
 <polygon points="554.0,90.0 563.0,103.0 554.0,116.0" fill="#ffaf00"/>
-<text x="563.0" y="108.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
-<polygon points="626.0,90.0 635.0,103.0 626.0,116.0" fill="#080808"/>
+<text x="563.0" y="108.7" fill="#d0d0d0" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<rect x="573.0" y="99.0" width="7.0" height="2" fill="#a8a8a8"/>
+<rect x="573.0" y="103.5" width="7.0" height="2" fill="#a8a8a8"/>
+<rect x="573.0" y="108.0" width="7.0" height="2" fill="#a8a8a8"/>
+<text x="581.0" y="108.7" fill="#a8a8a8" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<text x="590.0" y="108.7" fill="#22c55e" textLength="27.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">3/7</text>
+<text x="617.0" y="108.7" fill="#d0d0d0" textLength="9.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> </text>
+<polygon points="626.0,90.0 635.0,103.0 626.0,116.0" fill="#585858"/>
+<text x="635.0" y="108.7" fill="#00c5c7" textLength="63.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> $9.60 </text>
+<polygon points="698.0,90.0 707.0,103.0 698.0,116.0" fill="#080808"/>
 <rect x="14.0" y="116.0" width="504.0" height="26.0" fill="#303030"/>
 <text x="14.0" y="134.7" fill="#bcbcbc" textLength="18.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">  </text>
 <text x="32.0" y="134.7" fill="#808080" textLength="36.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">ctx </text>

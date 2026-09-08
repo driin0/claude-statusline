@@ -18,6 +18,20 @@ script="$here/../statusline.sh"
 err=$(mktemp)
 pass=0; fail=0
 
+# The task segment reads Claude Code's own on-disk task list, so it depends on
+# a directory rather than on a payload key. Pointing the config dir at an empty
+# temp tree does two things: it keeps every OTHER assertion in this file
+# independent of whether the machine running the suite happens to have a live
+# task list open, and it gives the task cases somewhere to build fixtures.
+CLAUDE_CONFIG_DIR=$(mktemp -d)
+export CLAUDE_CONFIG_DIR
+
+# The task segment's icon, U+2263, written in octal for the same reason the
+# script writes it that way: a multibyte glyph pasted into a file is one bad
+# copy away from being silently wrong, and here that would turn every task
+# assertion green against the wrong string.
+printf -v TASK '\342\211\243'
+
 # Strip ANSI/OSC escapes so assertions match on the visible text only.
 plain() { LC_ALL=C sed $'s/\033\\[[0-9;]*[A-Za-z]//g'; }
 
@@ -30,6 +44,28 @@ run() { # $1 = payload; echoes the rendered line, stderr captured in $err
 
 run_at() { # $1 = COLUMNS, $2 = payload
   printf '%s' "$2" | COLUMNS="$1" bash "$script" 2>"$err" | plain
+}
+
+run_raw() { # $1 = payload -- escapes NOT stripped, for colour assertions
+  printf '%s' "$1" | env -u COLUMNS bash "$script" 2>"$err"
+}
+
+make_tasks() { # $1 = session id, $2.. = statuses -> echoes a matching payload
+  # Written the way Claude Code writes them: one JSON file per task under
+  # $CLAUDE_CONFIG_DIR/tasks/<list id>/, with the list id defaulting to the
+  # session id. The dot-files it keeps alongside them are created too, because
+  # "the segment must not count .lock as a task" is one of the assertions.
+  local sid=$1; shift
+  local dir="$CLAUDE_CONFIG_DIR/tasks/$sid" i=0 s
+  rm -rf "$dir"; mkdir -p "$dir"
+  : > "$dir/.lock"
+  printf '%s' "$#" > "$dir/.highwatermark"
+  for s in "$@"; do
+    i=$((i + 1))
+    printf '{"id":"%s","subject":"do the thing %s","description":"","status":"%s","blocks":[],"blockedBy":[]}' \
+      "$i" "$i" "$s" > "$dir/$i.json"
+  done
+  printf '{"session_id":"%s","cwd":"/tmp"}' "$sid"
 }
 
 run_win() { # $1 = USERPROFILE, $2 = payload -- Windows needs it pinned:
@@ -350,6 +386,117 @@ check  "absurd reset still renders" "$(run "$absurd")" "(00:00)"
 refute "no runaway countdown"       "$(run "$absurd")" "h)"
 check  "gauge still rendered"       "$(run "$absurd")" "5h $(bar 2) 23%"
 
+echo "== task list segment =="
+# The list lives on disk and the payload only names it, so "no directory" is
+# the common case (no task list open) and must render nothing at all rather
+# than an empty or zeroed segment.
+none='{"session_id":"11111111-1111-1111-1111-111111111111","cwd":"/tmp"}'
+refute "no list on disk, no segment" "$(run "$none")" "$TASK "
+no_stderr "missing list is not an error"
+
+p=$(make_tasks 22222222-2222-2222-2222-222222222222 \
+      completed completed completed in_progress pending pending pending)
+check "counts completed over total" "$(run "$p")" "$TASK 3/7"
+
+# The segment tells the layout how wide it is, with the escapes excluded by
+# hand. A number that does not match what actually renders is invisible until
+# much later, as a two-row split that fires at the wrong terminal size -- so
+# it is measured against a run of the same payload without the list, and the
+# expected growth is the segment plus its separator.
+grew=$(( $(cols "$(run "$p")") - $(cols "$(run '{"cwd":"/tmp"}')") ))
+if [ "$grew" = "8" ]; then
+  pass=$((pass + 1)); printf '  ok   %s\n' "declared width matches rendered"
+else
+  fail=$((fail + 1)); printf '  FAIL %s (grew %s, want 8)\n' "declared width matches rendered" "$grew"
+fi
+
+# ...and the declared number is what the split reads, so it is also exercised
+# through the layout: an understated width overruns the row, which check_fits
+# is what catches.
+wide_tasks=${wide%\}}',"session_id":"22222222-2222-2222-2222-222222222222"}'
+check_fits "task row still fits at 92" "$(run_at 92 "$wide_tasks")" 92
+check_fits "task row still fits at 70" "$(run_at 70 "$wide_tasks")" 70
+check "task survives the narrow layout" "$(run_at 70 "$wide_tasks")" "$TASK 3/7"
+
+# The dot-files Claude Code keeps in the same directory (.lock, .highwatermark)
+# are not tasks. Counting them inflated the total by two.
+p=$(make_tasks 33333333-3333-3333-3333-333333333333 in_progress pending)
+check "dot-files are not tasks" "$(run "$p")" "$TASK 0/2"
+
+# A directory holding only the dot-files is what Claude Code leaves behind when
+# every task completed and it reset the list. That is "no list", not "0/0".
+empty_dir=$CLAUDE_CONFIG_DIR/tasks/44444444-4444-4444-4444-444444444444
+mkdir -p "$empty_dir"; : > "$empty_dir/.lock"; printf '9' > "$empty_dir/.highwatermark"
+refute "reset list renders nothing" \
+  "$(run '{"session_id":"44444444-4444-4444-4444-444444444444","cwd":"/tmp"}')" "$TASK "
+
+# The session id comes out of the payload, which is untrusted text. Claude Code
+# maps every character outside [a-zA-Z0-9_-] to "-" before using it as a
+# directory name; matching that is what makes the lookup find the real list,
+# and it is also what stops "../.." from being a path at all.
+p=$(make_tasks a-b-c completed pending)
+check "session id sanitised like upstream" \
+  "$(run '{"session_id":"a.b/c","cwd":"/tmp"}')" "$TASK 1/2"
+refute "no traversal out of the tasks dir" \
+  "$(run '{"session_id":"../../etc","cwd":"/tmp"}')" "$TASK "
+
+# CLAUDE_CODE_TASK_LIST_ID overrides the session id upstream, so it has to
+# override it here too, or a team list renders the wrong counts.
+p=$(make_tasks shared-list completed completed pending)
+out=$(printf '%s' '{"session_id":"55555555-5555-5555-5555-555555555555","cwd":"/tmp"}' \
+  | env -u COLUMNS CLAUDE_CODE_TASK_LIST_ID=shared-list bash "$script" 2>"$err" | plain)
+check "task list id env wins" "$out" "$TASK 2/3"
+
+echo "== task count colour carries the state =="
+# Green when something is actually in progress, grey when the list is open but
+# nothing is moving -- which is the reading worth having, because it means the
+# work stalled. 34;197;94 is the gradient's first stop and appears nowhere
+# else: the gauge cells start at 84;193;73.
+p=$(make_tasks 66666666-6666-6666-6666-666666666666 completed in_progress pending)
+check  "in progress is green"  "$(run_raw "$p")" "38;2;34;197;94"
+p=$(make_tasks 77777777-7777-7777-7777-777777777777 completed pending pending)
+refute "stalled list is not green" "$(run_raw "$p")" "38;2;34;197;94"
+check  "stalled list still counts" "$(run "$p")" "$TASK 1/3"
+
+# Pretty-printed task files (the payload arrives both ways, and nothing
+# promises these are one line each).
+multi_dir=$CLAUDE_CONFIG_DIR/tasks/88888888-8888-8888-8888-888888888888
+rm -rf "$multi_dir"; mkdir -p "$multi_dir"
+printf '{\n  "id": "1",\n  "subject": "x",\n  "status": "completed"\n}\n' > "$multi_dir/1.json"
+printf '{\n  "id": "2",\n  "subject": "y",\n  "status": "pending"\n}\n'   > "$multi_dir/2.json"
+check "pretty-printed files count once" \
+  "$(run '{"session_id":"88888888-8888-8888-8888-888888888888","cwd":"/tmp"}')" "$TASK 1/2"
+
+# CRLF, because on Windows everything eventually is. The counting reads the
+# files line by line and joins them, which moves the \r from the harmless end
+# of a line into the middle of the string -- so it is stripped, and both the
+# one-line and the indented shape are pinned here.
+crlf_dir=$CLAUDE_CONFIG_DIR/tasks/99999999-9999-9999-9999-999999999999
+rm -rf "$crlf_dir"; mkdir -p "$crlf_dir"
+printf '{"id":"1","status":"completed"}\r\n'                        > "$crlf_dir/1.json"
+printf '{"id":"2","status":"in_progress"}\r\n'                      > "$crlf_dir/2.json"
+printf '{\r\n  "id": "3",\r\n  "status": "pending"\r\n}\r\n'      > "$crlf_dir/3.json"
+crlf=$(run '{"session_id":"99999999-9999-9999-9999-999999999999","cwd":"/tmp"}')
+check "CRLF files count correctly" "$crlf" "$TASK 1/3"
+check "CRLF list still reads as active" "$(run_raw '{"session_id":"99999999-9999-9999-9999-999999999999","cwd":"/tmp"}')" "38;2;34;197;94"
+
+# Claude Code deletes every task file the moment the list resets, which can
+# land between the glob and the read. A file that cannot be opened must cost
+# nothing but its own count -- and above all must not print, because a status
+# line writing to stderr ends up in the session log. The redirect order in the
+# script is what makes this pass: "< file 2>/dev/null" reports the failure.
+race_dir=$CLAUDE_CONFIG_DIR/tasks/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+rm -rf "$race_dir"; mkdir -p "$race_dir"
+printf '{"id":"1","status":"completed"}' > "$race_dir/1.json"
+printf '{"id":"2","status":"pending"}'   > "$race_dir/2.json"
+printf '{"id":"3","status":"pending"}'   > "$race_dir/3.json"
+chmod 000 "$race_dir/3.json"
+race=$(run '{"session_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/tmp"}')
+check "unreadable task still counted in the total" "$race" "$TASK 1/3"
+no_stderr "an unreadable task file prints nothing"
+chmod 644 "$race_dir/3.json"
+
+rm -rf "$CLAUDE_CONFIG_DIR"
 rm -f "$err"
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

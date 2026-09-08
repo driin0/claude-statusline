@@ -23,6 +23,7 @@ gradient sweep above.
 | | `fast_mode` | `⚡`, only while it is on |
 | Directory | `cwd` | `$HOME` → `~`, parents cut to one character |
 | Git | `git` in `cwd` | branch, `⇡`ahead `⇣`behind, `✓` clean / `✗` dirty; omitted outside a repo |
+| Task | `session_id` → `tasks/` | `≣ 3/7`, completed over total; omitted when no list is open |
 | `ctx` | `context_window.used_percentage` | context window filled |
 | `5h` | `rate_limits.five_hour` | usage + **time left** to the reset |
 | `7d` | `rate_limits.seven_day` | usage + reset weekday and clock time |
@@ -85,6 +86,61 @@ One deliberate difference from p10k: its `SHORTEN_STRATEGY` is
 `truncate_to_unique`, which shortens each parent to the shortest prefix no
 sibling directory shares. That is prettier and needs a directory listing per
 parent on every render; this uses the first character unconditionally.
+
+### The task count
+
+`≣ 3/7` is the session's task list: completed over total. It is the one segment
+that does not come from the payload, because the payload does not carry it. Claude Code keeps the list on disk instead, one JSON file per task
+under `<config dir>/tasks/<list id>/`, and the segment counts them.
+
+The list id is the session id, unless `CLAUDE_CODE_TASK_LIST_ID` overrides it,
+which is what a shared team list does. Every character outside `[a-zA-Z0-9_-]`
+is mapped to `-` first, because that is what Claude Code does before using the
+value as a directory name — and matching it is what makes the lookup find the
+real directory. It also means a session id can never walk out of the tasks
+tree: `/` and `.` are gone before the value is part of a path.
+
+**The segment disappears on its own.** Claude Code deletes every task file the
+moment the last one completes, so an empty directory is the resting state and
+renders nothing rather than `0/0`. The `.highwatermark` left behind counts
+tasks that once existed, which is not a reading anybody wants on a status line.
+Nothing needs to know when a list ends.
+
+**The count is green only while a task is in progress.** A list that is open
+with nothing moving is drawn plain, and that is the reason the colour is there
+at all: it means the work stopped. Green is `#22c55e`, the gradient's first
+stop, which appears nowhere else on the line — the gauge cells start one step
+in, at `#54c149`.
+
+**The icon is `≣` (`U+2263`), and deliberately not a tick.** The git segment
+already spends `✓` on "clean"; two different ticks on one line, meaning two
+different things, is worse than no icon at all.
+
+Three codepoints were rejected before it, and the sequence is worth recording
+because every one of them failed the same way: by reasoning about a property
+that can be measured locally instead of the one that decides — **whether the
+glyph is in the font that will actually draw it, on the machine that will draw
+it**.
+
+| tried | why it looked right | why it was wrong |
+|---|---|---|
+| `☰` `U+2630` | `East_Asian_Width=W`, so the width is deterministic | `W` says how many cells the terminal *reserves*, not how wide the *drawn* glyph is. Missing from the terminal font it comes from fallback with its own advance: measured on stock Windows Terminal at ~1.5 of the 2 cells reserved. Also absent from MesloLGS NF |
+| `` `U+F0C9` | private use, so one cell, in the same font as the separator | `U+F020`–`U+F0FF` is where Windows maps Wingdings, Webdings and Symbol. Without a Nerd Font it degrades not to an empty box but to an unrelated dingbat — wrong, plausible, never reported as a bug |
+| `` `U+F44E` | above `U+F0FF`, so nothing legacy claims it: fails *visibly* | Visibly is still failing, and worse placed than assumed. Stock Windows draws `U+E0B0` from Segoe UI Symbol, so the separators render and only the icon would have been an empty box, in an otherwise perfect line |
+
+`U+2263` needs no fallback at all. It ships **inside the fonts that are already
+active** — Cascadia Mono on a stock Windows Terminal, MesloLGS NF and Menlo on
+macOS — which is a stronger guarantee than the separator's, since that one does
+depend on a fallback happening to be installed.
+
+**No fork.** The files are read and counted in the shell, with no `awk` and no
+subshell. An `awk` pass measured +2 ms per render on macOS, and this is the one
+segment that could add a fork to *every* render while you work — on Windows,
+where a fork is the most expensive thing this script can do, that is not a
+trade worth making. Counted in bash it costs nothing measurable at 7 tasks and
+about 2 ms at 30. Spaces, tabs and carriage returns are stripped before
+matching, so one pattern covers the compact form Claude Code writes, a
+pretty-printed file, and CRLF.
 
 ### The gauges
 
@@ -264,9 +320,14 @@ two seconds after a commit the segment shows the previous state.
 
 ## Requirements
 
-- **A Nerd Font.** The separator is `U+E0B0`, the same codepoint as
-  `POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR`. The gauge cells (`▰` `▱`) are plain
-  Unicode and need no special font.
+- **A Nerd Font**, for the separator `U+E0B0` — the same codepoint as
+  `POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR`. How badly you need one depends on the
+  platform, which is not what this README used to claim: a stock Windows
+  Terminal draws it from Segoe UI Symbol and looks right without any patched
+  font, while macOS has no system font carrying that glyph, so there the
+  requirement is real. Nothing else on the line needs one: the gauge cells
+  (`▰` `▱`) and the task icon (`≣`) are plain Unicode, present in Cascadia
+  Mono, Menlo and MesloLGS NF alike.
 - **A truecolour terminal** for the gradient. Without it the gauges still
   render, just flat.
 - `bash`, `awk`, `git`, `date` — all stock. No `jq` at runtime (only

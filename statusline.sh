@@ -1,7 +1,7 @@
 #!/bin/bash
 # Claude Code status line -- Powerlevel10k-inspired segments (layout B).
 # Reads the session JSON from stdin and renders, left to right:
-#   model | cwd | git branch+status | metrics (ctx/5h/7d gauges) | session cost
+#   model | cwd | git branch+status | task list | metrics (ctx/5h/7d) | cost
 # Segment/separator colors are 256-color (38;5;N / 48;5;N), copied from
 # ~/.p10k.zsh, so they follow the terminal's ANSI theme like p10k does. The
 # metrics segment's gauge cells use 24-bit truecolor (38;2;R;G;Bm) for a
@@ -73,6 +73,7 @@ END {
   print jbool(j, "fast_mode")
   print jstr(obj(j, "effort"), "level")
   print jnum(j, "total_api_duration_ms")
+  print jstr(j, "session_id")
 }')
 {
   read -r model
@@ -86,6 +87,7 @@ END {
   read -r fast_mode
   read -r effort_level
   read -r api_ms
+  read -r session_id
 } <<< "$parsed"
 
 # One clock reading for the whole render: fmt_left and the git cache both
@@ -537,7 +539,138 @@ if [ -n "$branch" ]; then
   fi
 fi
 
-# 4) metrics: one dark segment holding up to 3 gauges (ctx / 5h / 7d).
+# 4) task list progress (skipped unless a list exists on disk)
+#
+# Claude Code keeps the session's task list as one JSON file per task under
+# <config dir>/tasks/<list id>/, and deletes every one of them the moment the
+# last task reaches "completed". So a directory holding no *.json is the
+# normal resting state, and it means there is nothing to say -- not "0/0".
+# The .highwatermark it leaves behind is a count of tasks that once existed,
+# which is not a reading anybody wants on a status line.
+#
+# The list id is the session id, unless CLAUDE_CODE_TASK_LIST_ID overrides it
+# -- which is what a shared team list does. Upstream maps every character
+# outside [a-zA-Z0-9_-] onto "-" before using the value as a directory name.
+# Repeating that here is what makes the lookup find the real directory; it is
+# also, for free, why a session id out of the payload cannot walk anywhere:
+# both "/" and "." are gone before the value is ever part of a path.
+task_list_id=${CLAUDE_CODE_TASK_LIST_ID:-$session_id}
+task_list_id=${task_list_id//[!a-zA-Z0-9_-]/-}
+if [ -n "$task_list_id" ]; then
+  task_files=("${CLAUDE_CONFIG_DIR:-$HOME/.claude}/tasks/${task_list_id}"/*.json)
+  # An unmatched glob comes back as the pattern itself in bash 3.2 -- nullglob
+  # would fix it and is not worth setting, because it would silently change
+  # every other glob in the script -- so the first element is tested for
+  # existence rather than counted. Dot-files need no filtering: "*" does not
+  # match a leading dot, which is precisely why .lock and .highwatermark stay
+  # out of the total without a word being spent on them.
+  if [ -e "${task_files[0]}" ]; then
+    # Counted in the shell, with no awk and no subshell: this is the one
+    # place a segment can add a fork to EVERY render, and on Windows a fork is
+    # the most expensive thing this script can do (see the performance notes --
+    # MSYS has no real fork() and pays about 200 ms a render for the ones that
+    # were already here). An awk pass over these files measured +2 ms on macOS
+    # and would have cost far more there, to read a few hundred bytes.
+    #
+    # Spaces and tabs go first, so one pattern covers both the compact form
+    # Claude Code writes and a pretty-printed file. Deleting them cannot create
+    # a false match: a status written inside subject or description has its
+    # quotes escaped, and \"status\" offers no closing quote where the pattern
+    # needs one. Then the content is cut at the FIRST occurrence of the key,
+    # because "status" can appear a second time as a metadata key and metadata
+    # is written after the real field.
+    task_done=0
+    task_active=0
+    for task_file in "${task_files[@]}"; do
+      task_json=""
+      # "|| [ -n "$line" ]" because the files carry no trailing newline, and
+      # without it read returns false on the last line and drops it -- which
+      # for a one-line file is the whole file.
+      # The stderr redirect comes BEFORE the input one, and the order is not
+      # cosmetic: redirections apply left to right, so with "< file 2>/dev/null"
+      # the open fails while stderr still points at the real one and bash
+      # reports it. Claude Code deletes every task file the instant the list
+      # resets, which can land between the glob above and this read, so the
+      # race is real rather than theoretical -- and a status line that prints
+      # to stderr is one that shows up in a session log.
+      while IFS= read -r task_line || [ -n "$task_line" ]; do
+        task_json+=$task_line
+      done 2>/dev/null < "$task_file"
+      task_json=${task_json// /}
+      task_json=${task_json//$'\t'/}
+      # And the carriage return, which read leaves at the end of every line of
+      # a CRLF file. It survived the awk this used to be -- that pattern closed
+      # on a quote, so a \r past it was harmless -- but here the lines are
+      # concatenated, which moves the \r INTO the middle of the string.
+      task_json=${task_json//$'\r'/}
+      case ${task_json#*'"status":'} in
+        '"completed"'*)   task_done=$((task_done + 1)) ;;
+        '"in_progress"'*) task_active=$((task_active + 1)) ;;
+      esac
+    done
+    # No guard on the count: the glob already found a file, so the total is at
+    # least one.
+    task_count="${task_done}/${#task_files[@]}"
+    # The one colour on this segment that carries information rather than
+    # decoration: green while something is actually in progress, plain while
+    # the list is open and nothing is moving. The second state is the reason
+    # the colour is here at all -- an open list with no task in progress
+    # means the work stopped, and that is worth noticing from across a desk.
+    # 34;197;94 is the gradient's first stop, and it appears nowhere else on
+    # the line: the gauge cells start one step in, at 84;193;73.
+    if [ "$task_active" -gt 0 ]; then
+      task_col='\033[38;2;34;197;94m'
+    else
+      task_col='\033[38;5;252m'
+    fi
+    # bg 240 is one step lighter than the metrics panel's 236, which is one
+    # step lighter than cost's 232: the three dark segments descend rather
+    # than repeat, so the seams show without a fourth hue being introduced to
+    # a line that already carries four. The icon is 248 rather than the
+    # gauges' 244 for the same reason a label is dimmer than its value at all
+    # -- what is copied is the RELATIONSHIP to the background, not the number,
+    # and this background is lighter.
+    #
+    # U+2263 (three horizontal strokes -- a list) and NOT a tick: the git
+    # segment already spends U+2713 on "clean", and two different ticks on one
+    # line meaning two different things is worse than no icon at all.
+    #
+    # Three codepoints were tried and rejected before this one. All three
+    # failures came from reasoning about a property that can be measured
+    # locally instead of the one that decides: whether the glyph is in the
+    # font that will actually draw it, on the machine that will draw it.
+    #
+    # U+2630 draws the same strokes and went first, because East_Asian_Width=W
+    # looked like a width guarantee. It is not: W says how many cells the
+    # terminal RESERVES, not how wide the drawn glyph is. Missing from the
+    # terminal font, it arrives from fallback with an advance of its own --
+    # measured on stock Windows Terminal at about one and a half of the two
+    # cells reserved. It is also absent from MesloLGS NF.
+    #
+    # U+F0C9 moved it to the private use area, which fixed the width and broke
+    # something worse: U+F020-U+F0FF is where Windows maps Wingdings, Webdings
+    # and Symbol, so without a Nerd Font the glyph becomes an unrelated
+    # dingbat -- wrong, plausible, and never reported as a bug.
+    #
+    # U+F44E cleared that range (above U+F0FF nothing legacy claims anything),
+    # so it failed visibly instead of silently. But visibly was still a
+    # failure, and a worse-placed one than assumed: stock Windows draws U+E0B0
+    # from Segoe UI Symbol, so the separators render and only the icon would
+    # have been an empty box, in an otherwise perfect line.
+    #
+    # U+2263 needs no fallback at all. It ships inside the fonts that are
+    # already active: Cascadia Mono on a stock Windows Terminal, MesloLGS NF
+    # and Menlo on macOS. That is a stronger guarantee than the separator's,
+    # which does depend on a fallback happening to be installed.
+    # A space between the icon and the count. The two-column U+2630 this
+    # replaced carried its own gap and did not need one; a one-cell glyph sits
+    # hard against the digits without it.
+    printf -v task_txt ' \033[38;5;248m\342\211\243 %b%s\033[38;5;252m ' "$task_col" "$task_count"
+    add_segment 252 240 "$task_txt" "$((${#task_count} + 4))"
+  fi
+fi
+
+# 5) metrics: one dark segment holding up to 3 gauges (ctx / 5h / 7d).
 #    Each gauge is independently optional; the whole segment is skipped
 #    if none of the three values are available.
 round_pct "$used_pct";       ctx_int=$RP_OUT
@@ -574,7 +707,7 @@ if [ -n "$metrics_txt" ]; then
   add_segment 250 236 "  ${metrics_txt}  " "$((metrics_w + 4))"
 fi
 
-# 5) session cost
+# 6) session cost
 COST_IDX=-1
 if [ -n "$cost_usd" ]; then
   format_cost "$cost_usd"; cost_fmt=$FC_OUT
