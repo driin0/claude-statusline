@@ -320,14 +320,45 @@ two seconds after a commit the segment shows the previous state.
 
 ## Requirements
 
-- **A Nerd Font**, for the separator `U+E0B0` — the same codepoint as
-  `POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR`. How badly you need one depends on the
-  platform, which is not what this README used to claim: a stock Windows
-  Terminal draws it from Segoe UI Symbol and looks right without any patched
-  font, while macOS has no system font carrying that glyph, so there the
-  requirement is real. Nothing else on the line needs one: the gauge cells
-  (`▰` `▱`) and the task icon (`≣`) are plain Unicode, present in Cascadia
-  Mono, Menlo and MesloLGS NF alike.
+- **A Nerd Font** — or `CLAUDE_STATUSLINE_PLAIN=1` instead. The separator is
+  `U+E0B0`, the same codepoint as `POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR`, and
+  it is the only glyph on the line that needs a patched font. Everything else
+  is plain Unicode, present in Cascadia Mono, Menlo and MesloLGS NF alike: the
+  gauge cells (`▰` `▱`), the git check, the ahead/behind arrows and the task
+  icon (`≣`). Setting `CLAUDE_STATUSLINE_PLAIN=1` swaps the arrow for
+  `U+258C`, the left half block, which is also stock: drawn with the same
+  foreground/background pair it renders the segment boundary as a straight
+  edge rather than a point, and it is one column wide like the arrow, so no
+  layout arithmetic changes. Because the requirement covers the separator
+  alone, that single substitution leaves the whole line legible with no font
+  requirement at all. Wire it into `settings.json` as
+  `"command": "CLAUDE_STATUSLINE_PLAIN=1 bash \"$HOME/.claude/statusline-command.sh\""`.
+
+  Whether the hatch is needed at all is per-platform, and both halves below
+  were measured rather than assumed:
+
+  * **Windows — not needed.** `U+E0B0` is absent from Cascadia Mono, the
+    Windows Terminal default, but Segoe UI Symbol ships with the OS and
+    carries it, so the arrows render on a stock machine with no Nerd Font in
+    sight. Confirmed by eye, and discovered the hard way: switching that
+    machine to the plain separator was noticed immediately as a regression.
+  * **macOS — needed.** No default terminal font covers it: SF Mono, Menlo,
+    Monaco, Andale Mono, Courier New and Apple Symbols all lack it. The system
+    fonts that do claim the codepoint are Apple's Arabic PUA faces, which map
+    presentation forms into that area rather than arrows, plus `.LastResort`.
+    The fallback is therefore a placeholder box or an Arabic ligature —
+    neither of which is a separator.
+  * **Linux — assume needed.** It depends entirely on what the distribution
+    installs, and a minimal one installs nothing that covers the PUA.
+
+  The private use area is still worth understanding before putting another
+  glyph on this line, because that fallback is luck rather than design. On
+  Windows the PUA is not free: Wingdings, Wingdings 2, Wingdings 3 and
+  Webdings occupy `U+F020`–`U+F0FF`. A codepoint in that range does not
+  degrade to an honest tofu box — it degrades to an unrelated dingbat, at
+  whatever width that font happens to use, and the result looks deliberate
+  enough that nobody reports it as a missing font. `U+E0B0` sits below the
+  range and got lucky; anything added later should sit above `U+F0FF`.
 - **A truecolour terminal** for the gradient. Without it the gauges still
   render, just flat.
 - `bash`, `awk`, `git`, `date` — all stock. No `jq` at runtime (only
@@ -410,7 +441,9 @@ Then verify:
 
 The new line appears on Claude Code's next render; no restart. If it renders as
 mojibake instead of connected blocks, the terminal lacks a Nerd Font — a
-terminal setting, not something the installer can fix.
+terminal setting, not something the installer can fix. If installing one is not
+an option, `CLAUDE_STATUSLINE_PLAIN=1` renders the same line with a stock-font
+separator instead; see Requirements.
 
 ## Layout
 
@@ -418,7 +451,7 @@ terminal setting, not something the installer can fix.
 statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
-tests/run-tests.sh         90 assertions
+tests/run-tests.sh         104 assertions
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
 tools/ansi-to-svg.py       ANSI -> SVG, used by the above
@@ -433,7 +466,7 @@ CLAUDE.md                  install and contribution notes, for an agent
 ./tests/run-tests.sh
 ```
 
-90 assertions over the real payload plus the shapes that break things:
+104 assertions over the real payload plus the shapes that break things:
 missing and `null` reset timestamps, a reset already in the past, `{}`, empty
 input, a pretty-printed payload, decimal percentages, an escaped quote in a
 value, a command hidden in a path, cost as an integer, a home directory
