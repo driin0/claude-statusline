@@ -433,19 +433,21 @@ build_bar() {
 # also happens to be what "dirty" means.
 # printf -v, not $(printf ...): command substitution forks a subshell, and
 # these two ran on every render for no reason at all.
-# U+E0B0 lives in the Unicode private use area, which makes it this line's one
-# hard font dependency -- and its failure mode is not the honest tofu box you
-# would hope for. On Windows the same codepoints are squatted on by Wingdings,
-# Webdings and Symbol, so a terminal without a patched font falls back to one
-# of those and draws an unrelated dingbat that looks entirely deliberate --
-# nobody reads it as "missing font". CLAUDE_STATUSLINE_PLAIN=1 swaps in U+258C,
-# the left half block, which ships in every stock monospace font (Cascadia
-# Mono, Consolas, Menlo, DejaVu Sans Mono). It is drawn with the same fg/bg
-# pair as the arrow -- previous segment's color as foreground, next segment's
-# as background -- so the two colors still meet inside the one cell and in the
-# same order, and the boundary reads as a straight edge instead of a point.
-# It is also one column wide, so row_width()'s "one column per separator"
-# stays true and not a single layout number changes.
+# U+E0B0 lives in the Unicode private use area, which makes it the one glyph
+# here whose rendering depends on a font nobody guaranteed. Whether that is a
+# problem is per-platform and was measured, not assumed: on Windows the arrow
+# renders on a stock machine, because Segoe UI Symbol ships with the OS and
+# carries the codepoint, while on macOS no default terminal font has it and
+# the fallback is a placeholder box or -- via Apple's Arabic PUA faces, which
+# map presentation forms into that area -- something stranger still.
+# CLAUDE_STATUSLINE_PLAIN=1 swaps in U+258C, the left half block, which ships
+# in every stock monospace font (Cascadia Mono, Consolas, Menlo, DejaVu Sans
+# Mono). It is drawn with the same fg/bg pair as the arrow -- previous
+# segment's color as foreground, next segment's as background -- so the two
+# colors still meet inside the one cell and in the same order, and the
+# boundary reads as a straight edge instead of a point. It is also one column
+# wide, so row_width()'s "one column per separator" stays true and not a
+# single layout number changes.
 if [ -n "${CLAUDE_STATUSLINE_PLAIN:-}" ]; then
   printf -v SEP '\342\226\214'   # U+258C LEFT HALF BLOCK
 else
