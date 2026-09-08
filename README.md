@@ -338,9 +338,9 @@ two seconds after a commit the segment shows the previous state.
   `settings.json` as
   `"command": "CLAUDE_STATUSLINE_PLAIN=1 bash \"$HOME/.claude/statusline-command.sh\""`
   — or, with `CLAUDE_CONFIG_DIR` set, that directory instead of `~/.claude`,
-  since it is where `install.sh` puts the symlink. Note that the next
-  `sh install.sh` rewrites `statusLine.command` to its own string and drops the
-  prefix; it backs the file up first, but the setting has to be put back.
+  which is where `install.sh` puts the symlink and what it writes into
+  `settings.json`. Re-running the installer keeps a command it can see already
+  runs this script, prefix included.
 
   Whether the hatch is needed at all is per-platform, and both halves below
   were measured rather than assumed:
@@ -443,8 +443,9 @@ and changes nothing.
 Then verify:
 
 ```sh
-./tests/run-tests.sh    # must print "N passed, 0 failed"
-./preview.sh            # the line, without a live session
+./tests/run-tests.sh     # must print "N passed, 0 failed"
+./tests/install-tests.sh # the installer itself, in a sandboxed HOME
+./preview.sh             # the line, without a live session
 ```
 
 The new line appears on Claude Code's next render; no restart. If it renders as
@@ -459,7 +460,8 @@ separator instead; see Requirements.
 statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
-tests/run-tests.sh         127 assertions
+tests/run-tests.sh         127 assertions on the rendered line
+tests/install-tests.sh     24 assertions on install.sh, in a fake HOME
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
 tools/ansi-to-svg.py       ANSI -> SVG, used by the above

@@ -18,17 +18,37 @@ set -eu
 REPO=$(cd -- "$(dirname -- "$0")" && pwd)
 SOURCE="$REPO/statusline.sh"
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-TARGET="$CLAUDE_DIR/statusline-command.sh"
-SETTINGS="$CLAUDE_DIR/settings.json"
-# shellcheck disable=SC2016  # $HOME must reach settings.json UNexpanded:
-# Claude Code expands it itself, and baking in this machine's home directory
-# would make the file wrong the moment it is copied to another account.
-COMMAND='bash "$HOME/.claude/statusline-command.sh"'
 STAMP=$(date +%Y%m%d-%H%M%S)
 
 [ -f "$SOURCE" ] || { echo "missing $SOURCE" >&2; exit 1; }
 [ -d "$CLAUDE_DIR" ] || { echo "no Claude config dir at $CLAUDE_DIR" >&2; exit 1; }
+# Resolved before anything is derived from it. A relative or unnormalised
+# CLAUDE_CONFIG_DIR works fine for creating the symlink -- and then goes into
+# settings.json as a path Claude Code resolves against a working directory
+# nobody chose, which is a broken status line and no error to say why.
+CLAUDE_DIR=$(cd -- "$CLAUDE_DIR" && pwd)
 chmod +x "$SOURCE"
+
+TARGET="$CLAUDE_DIR/statusline-command.sh"
+SETTINGS="$CLAUDE_DIR/settings.json"
+
+# The command is derived from CLAUDE_DIR rather than written out, because this
+# script honours CLAUDE_CONFIG_DIR everywhere else: it used to link the script
+# into that directory and then tell settings.json to run "$HOME/.claude/..."
+# -- a path it had not created. On a machine that only ever used
+# CLAUDE_CONFIG_DIR that file does not exist, and a status line that cannot be
+# executed renders nothing, with no error anywhere to say why.
+#
+# $HOME stays UNexpanded when the target is under it: Claude Code expands the
+# command itself, and baking in this machine's home directory would make the
+# file wrong the moment the account changes. Outside the home there is nothing
+# to abbreviate against, so the absolute path goes in as it is.
+HOME_FORM=$TARGET
+# shellcheck disable=SC2016  # the literal $HOME is the point, see above
+case "$TARGET" in
+  "$HOME"/*) HOME_FORM='$HOME/'"${TARGET#"$HOME"/}" ;;
+esac
+COMMAND="bash \"$HOME_FORM\""
 
 # --- 1. the script ---------------------------------------------------------
 # Two "already installed" shapes, because `ln -s` under Git Bash produces a
@@ -145,27 +165,56 @@ PYEOF
   esac
 }
 
+# A fresh settings.json is written without a JSON tool, so the one string that
+# goes into it is escaped here. It is only ever `bash "<path>"`, but a Windows
+# CLAUDE_CONFIG_DIR is a native path full of backslashes.
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+# "Installed" means the command runs our script, not that it matches ours byte
+# for byte. Part 1 above already knows this -- it accepts the symlink *or* a
+# copy with the same bytes -- and this is the same idea for the command: a
+# prefix (CLAUDE_STATUSLINE_PLAIN=1), a wrapper, another interpreter are all
+# somebody's deliberate choice, and re-running an installer is not a request
+# to undo them. The old check compared the whole string, so any of those was
+# silently rewritten back on the next run, leaving only a .bak behind.
+references_target() { # $1 = the command currently in settings.json
+  case "$1" in
+    '') return 1 ;;
+    *"$TARGET"*)    return 0 ;;   # absolute, however it was written
+    *"$HOME_FORM"*) return 0 ;;   # with $HOME left for Claude Code to expand
+    *) return 1 ;;
+  esac
+}
+
 if [ ! -f "$SETTINGS" ]; then
-  # shellcheck disable=SC2016  # same reason as COMMAND above
-  printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "bash \\"$HOME/.claude/statusline-command.sh\\""\n  }\n}\n' > "$SETTINGS"
+  printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "%s"\n  }\n}\n' \
+    "$(json_escape "$COMMAND")" > "$SETTINGS"
   echo "==> created $SETTINGS"
 elif [ -z "$JSON_TOOL" ]; then
   # Hand-editing settings.json is exactly the kind of one-time step that goes
   # wrong quietly, so say the words rather than attempt a sed edit.
   echo "!! no jq, python3 or node found -- add this to $SETTINGS by hand:" >&2
-  # shellcheck disable=SC2016  # same reason as COMMAND above
-  echo '   "statusLine": { "type": "command", "command": "bash \"$HOME/.claude/statusline-command.sh\"" }' >&2
+  echo "   \"statusLine\": { \"type\": \"command\", \"command\": \"$(json_escape "$COMMAND")\" }" >&2
   exit 1
-elif [ "$(current_command)" = "$COMMAND" ]; then
-  echo "==> settings.json already points at the status line"
 else
-  cp "$SETTINGS" "$SETTINGS.bak-$STAMP"
-  if write_command; then
-    echo "==> updated $SETTINGS via $JSON_TOOL (backup: $SETTINGS.bak-$STAMP)"
+  CURRENT=$(current_command)
+  if [ "$CURRENT" = "$COMMAND" ]; then
+    echo "==> settings.json already points at the status line"
+  elif references_target "$CURRENT"; then
+    # Said out loud, because "already installed" and "installed differently
+    # from how I would have done it" are worth telling apart when the line
+    # then renders in a way the README did not describe.
+    echo "==> settings.json already runs the status line (custom command kept):"
+    echo "    $CURRENT"
   else
-    cp "$SETTINGS.bak-$STAMP" "$SETTINGS"
-    echo "!! could not update $SETTINGS -- it has been left unchanged" >&2
-    exit 1
+    cp "$SETTINGS" "$SETTINGS.bak-$STAMP"
+    if write_command; then
+      echo "==> updated $SETTINGS via $JSON_TOOL (backup: $SETTINGS.bak-$STAMP)"
+    else
+      cp "$SETTINGS.bak-$STAMP" "$SETTINGS"
+      echo "!! could not update $SETTINGS -- it has been left unchanged" >&2
+      exit 1
+    fi
   fi
 fi
 
