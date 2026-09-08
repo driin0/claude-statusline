@@ -448,11 +448,13 @@ build_bar() {
 # boundary reads as a straight edge instead of a point. It is also one column
 # wide, so row_width()'s "one column per separator" stays true and not a
 # single layout number changes.
-if [ -n "${CLAUDE_STATUSLINE_PLAIN:-}" ]; then
-  printf -v SEP '\342\226\214'   # U+258C LEFT HALF BLOCK
-else
-  printf -v SEP '\356\202\260'   # U+E0B0, same as POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR
-fi
+# Matched against a list rather than tested for emptiness: with [ -n ] the
+# obvious way to turn the hatch off in one shell -- CLAUDE_STATUSLINE_PLAIN=0 --
+# switched it on instead, and a status line has nowhere to report that.
+case "${CLAUDE_STATUSLINE_PLAIN:-}" in
+  1|true|yes|on) printf -v SEP '\342\226\214' ;;  # U+258C LEFT HALF BLOCK
+  *)             printf -v SEP '\356\202\260' ;;  # U+E0B0, same as POWERLEVEL9K_LEFT_SEGMENT_SEPARATOR
+esac
 # Between gauges: U+00B7, at 240 -- a shade below the labels, so it groups the
 # three readings without joining the competition for attention. Written in
 # octal for the same reason as SEP: a multibyte glyph pasted into a file is

@@ -38,16 +38,19 @@ plain() { LC_ALL=C sed $'s/\033\\[[0-9;]*[A-Za-z]//g'; }
 run() { # $1 = payload; echoes the rendered line, stderr captured in $err
   # COLUMNS is unset on purpose: with it, the layout may split into two rows,
   # and every assertion in this file would depend on the size of the window
-  # the suite happened to be run in.
-  printf '%s' "$1" | env -u COLUMNS bash "$script" 2>"$err" | plain
+  # the suite happened to be run in. CLAUDE_STATUSLINE_PLAIN goes for the same
+  # reason and a sharper one: whoever exports it is exactly the person this
+  # suite must still be green for, and with it leaking in, the two assertions
+  # on the default separator fail on an unmodified checkout.
+  printf '%s' "$1" | env -u COLUMNS -u CLAUDE_STATUSLINE_PLAIN bash "$script" 2>"$err" | plain
 }
 
 run_at() { # $1 = COLUMNS, $2 = payload
-  printf '%s' "$2" | COLUMNS="$1" bash "$script" 2>"$err" | plain
+  printf '%s' "$2" | env -u CLAUDE_STATUSLINE_PLAIN COLUMNS="$1" bash "$script" 2>"$err" | plain
 }
 
 run_raw() { # $1 = payload -- escapes NOT stripped, for colour assertions
-  printf '%s' "$1" | env -u COLUMNS bash "$script" 2>"$err"
+  printf '%s' "$1" | env -u COLUMNS -u CLAUDE_STATUSLINE_PLAIN bash "$script" 2>"$err"
 }
 
 make_tasks() { # $1 = session id, $2.. = statuses -> echoes a matching payload
@@ -71,11 +74,19 @@ make_tasks() { # $1 = session id, $2.. = statuses -> echoes a matching payload
 run_win() { # $1 = USERPROFILE, $2 = payload -- Windows needs it pinned:
   # the variable is set for real on a Windows box and absent on the CI
   # runners, and "does the home collapse" is exactly what it decides.
-  printf '%s' "$2" | env -u COLUMNS USERPROFILE="$1" bash "$script" 2>"$err" | plain
+  printf '%s' "$2" | env -u COLUMNS -u CLAUDE_STATUSLINE_PLAIN USERPROFILE="$1" bash "$script" 2>"$err" | plain
 }
 
 run_plain() { # $1 = payload, rendered with the no-Nerd-Font escape hatch on
   printf '%s' "$1" | env -u COLUMNS CLAUDE_STATUSLINE_PLAIN=1 bash "$script" 2>"$err" | plain
+}
+
+run_at_plain() { # $1 = COLUMNS, $2 = payload -- the narrow case, hatch on
+  printf '%s' "$2" | env CLAUDE_STATUSLINE_PLAIN=1 COLUMNS="$1" bash "$script" 2>"$err" | plain
+}
+
+run_flag() { # $1 = the CLAUDE_STATUSLINE_PLAIN value under test, $2 = payload
+  printf '%s' "$2" | env -u COLUMNS CLAUDE_STATUSLINE_PLAIN="$1" bash "$script" 2>"$err" | plain
 }
 
 cols() { # $1 = one plain line -> its column count, independent of the locale
@@ -448,7 +459,7 @@ refute "no traversal out of the tasks dir" \
 # override it here too, or a team list renders the wrong counts.
 p=$(make_tasks shared-list completed completed pending)
 out=$(printf '%s' '{"session_id":"55555555-5555-5555-5555-555555555555","cwd":"/tmp"}' \
-  | env -u COLUMNS CLAUDE_CODE_TASK_LIST_ID=shared-list bash "$script" 2>"$err" | plain)
+  | env -u COLUMNS -u CLAUDE_STATUSLINE_PLAIN CLAUDE_CODE_TASK_LIST_ID=shared-list bash "$script" 2>"$err" | plain)
 check "task list id env wins" "$out" "$TASK 2/3"
 
 echo "== task count colour carries the state =="
@@ -500,7 +511,6 @@ check "unreadable task still counted in the total" "$race" "$TASK 1/3"
 no_stderr "an unreadable task file prints nothing"
 chmod 644 "$race_dir/3.json"
 
-rm -rf "$CLAUDE_CONFIG_DIR"
 echo "== the line without a Nerd Font (CLAUDE_STATUSLINE_PLAIN) =="
 # U+E0B0 is the line's only private-use codepoint, and the private use area is
 # not empty on Windows: Wingdings, Wingdings 2, Wingdings 3 and Webdings cover
@@ -508,34 +518,39 @@ echo "== the line without a Nerd Font (CLAUDE_STATUSLINE_PLAIN) =="
 # Font does not draw an honest tofu box -- it draws a plausible wrong glyph
 # from whatever font DirectWrite falls back to, which nobody reads as "missing
 # font". The escape hatch has to hold two things at once: the arrow is gone,
-# and the replacement is exactly as wide, or row_width()'s "one column per
-# separator" quietly stops being true and the two-row split fires at the wrong
-# size -- a defect that only shows up on someone else's terminal.
+# and the rest of the line is untouched.
+#
+# This block sits before the fixture teardown on purpose. Rendered after it,
+# both sides would be missing the task segment -- the newest thing on the
+# line -- and the comparison would be made on a line one segment shorter than
+# the one anybody actually looks at.
+make_tasks 00000000-0000-0000-0000-000000000000 completed in_progress pending >/dev/null
 pe=$(cat "$here/payload-example.json")
 dflt=$(run "$pe")
 pln=$(run_plain "$pe")
 
-check  "plain uses U+258C"          "$pln"  "$(printf '\342\226\214')"
-refute "plain drops U+E0B0"         "$pln"  "$(printf '\356\202\260')"
-check  "default keeps U+E0B0"       "$dflt" "$(printf '\356\202\260')"
-check  "plain keeps the gauges"     "$pln"  "ctx $(bar 1) 17%"
-check  "plain keeps the cost"       "$pln"  "\$9.60"
+check  "plain uses U+258C"            "$pln"  "$(printf '\342\226\214')"
+refute "plain drops U+E0B0"           "$pln"  "$(printf '\356\202\260')"
+check  "default keeps U+E0B0"         "$dflt" "$(printf '\356\202\260')"
+check  "plain keeps the gauges"       "$pln"  "ctx $(bar 1) 17%"
+check  "plain keeps the cost"         "$pln"  "\$9.60"
+check  "plain keeps the task segment" "$pln"  "$TASK 1/3"
 
-# The whole point: same columns, so every layout number stays valid. Bracketed
-# because check() is a substring test and "10" sits inside "100".
+# Bracketed because check() is a substring test and "10" sits inside "100".
 check "plain is exactly as wide" "[$(cols "$dflt")]" "[$(cols "$pln")]"
 
 # ...and therefore the row split fires at the same width, not one column off.
-narrow_d=$(rows "$(run_at 100 "$pe")")
-narrow_p=$(rows "$(printf '%s' "$pe" | COLUMNS=100 CLAUDE_STATUSLINE_PLAIN=1 bash "$script" | plain)")
-check "plain splits into the same rows" "[$narrow_d]" "[$narrow_p]"
+check "plain splits into the same rows" \
+  "[$(rows "$(run_at 100 "$pe")")]" "[$(rows "$(run_at_plain 100 "$pe")")]"
 
-# An unset variable is the default, and an empty one is not "on": the hatch is
-# opt-in, so a stray "export CLAUDE_STATUSLINE_PLAIN=" must not silently
-# change the look of everyone's line.
-empty=$(printf '%s' "$pe" | env -u COLUMNS CLAUDE_STATUSLINE_PLAIN= bash "$script" | plain)
-check "empty value is not opt-in" "$empty" "$(printf '\356\202\260')"
+# The hatch is opt-in, and opt-in is a list of values rather than "not empty":
+# a stray "export CLAUDE_STATUSLINE_PLAIN=" must not change everyone's line,
+# and neither must the obvious way to ask for it to be off.
+check "empty value is not opt-in" "$(run_flag ''  "$pe")" "$(printf '\356\202\260')"
+check "0 is not opt-in"           "$(run_flag 0   "$pe")" "$(printf '\356\202\260')"
+check "1 is opt-in"               "$(run_flag 1   "$pe")" "$(printf '\342\226\214')"
 
+rm -rf "$CLAUDE_CONFIG_DIR"
 rm -f "$err"
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -53,6 +53,10 @@ render() { # $1 = destination path, $2 = title; the ANSI lines arrive on stdin
 PREVIEW_NOW=1788606000
 TZ=Europe/Rome
 export PREVIEW_NOW TZ
+# Not a pin but the same purpose: exported, CLAUDE_STATUSLINE_PLAIN would draw
+# U+258C separators into docs/, and the drift check in CI would then fail for
+# everyone whose shell does not happen to have it set.
+unset CLAUDE_STATUSLINE_PLAIN
 
 # The rendered line depends on the filesystem: the directory shown is $PWD and
 # the git segment reflects whatever repository that is. Both differ between a

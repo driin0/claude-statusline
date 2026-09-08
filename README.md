@@ -325,14 +325,22 @@ two seconds after a commit the segment shows the previous state.
   it is the only glyph on the line that needs a patched font. Everything else
   is plain Unicode, present in Cascadia Mono, Menlo and MesloLGS NF alike: the
   gauge cells (`▰` `▱`), the git check, the ahead/behind arrows and the task
-  icon (`≣`). Setting `CLAUDE_STATUSLINE_PLAIN=1` swaps the arrow for
+  icon (`≣`). The one exception is the fast-mode bolt `⚡` (`U+26A1`), which is
+  emoji-presentation and two columns wide — the layout budgets for that, but a
+  console with no emoji font at all draws it as tofu and the model segment ends
+  up a column short. Setting `CLAUDE_STATUSLINE_PLAIN=1` swaps the arrow for
   `U+258C`, the left half block, which is also stock: drawn with the same
   foreground/background pair it renders the segment boundary as a straight
   edge rather than a point, and it is one column wide like the arrow, so no
   layout arithmetic changes. Because the requirement covers the separator
-  alone, that single substitution leaves the whole line legible with no font
-  requirement at all. Wire it into `settings.json` as
-  `"command": "CLAUDE_STATUSLINE_PLAIN=1 bash \"$HOME/.claude/statusline-command.sh\""`.
+  alone, that single substitution leaves the line legible on a stock font, the
+  bolt above being the one thing that still wants an emoji one. Wire it into
+  `settings.json` as
+  `"command": "CLAUDE_STATUSLINE_PLAIN=1 bash \"$HOME/.claude/statusline-command.sh\""`
+  — or, with `CLAUDE_CONFIG_DIR` set, that directory instead of `~/.claude`,
+  since it is where `install.sh` puts the symlink. Note that the next
+  `sh install.sh` rewrites `statusLine.command` to its own string and drops the
+  prefix; it backs the file up first, but the setting has to be put back.
 
   Whether the hatch is needed at all is per-platform, and both halves below
   were measured rather than assumed:
@@ -451,7 +459,7 @@ separator instead; see Requirements.
 statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
-tests/run-tests.sh         104 assertions
+tests/run-tests.sh         127 assertions
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
 tools/ansi-to-svg.py       ANSI -> SVG, used by the above
@@ -466,7 +474,7 @@ CLAUDE.md                  install and contribution notes, for an agent
 ./tests/run-tests.sh
 ```
 
-104 assertions over the real payload plus the shapes that break things:
+127 assertions over the real payload plus the shapes that break things:
 missing and `null` reset timestamps, a reset already in the past, `{}`, empty
 input, a pretty-printed payload, decimal percentages, an escaped quote in a
 value, a command hidden in a path, cost as an integer, a home directory
