@@ -6,6 +6,46 @@ REPO=$(cd -- "$(dirname -- "$0")/.." && pwd)
 OUT="$REPO/docs/preview.svg"
 mkdir -p "$REPO/docs"
 
+# `command -v python3` is not evidence that python3 runs: Windows ships an App
+# Execution Alias of that name that exits non-zero after advertising the
+# Microsoft Store. install.sh probes the same way and for the same reason, but
+# the stakes here are sharper. Every render below used to open its output file
+# through a shell redirection, and a redirection TRUNCATES before the command
+# on the left is even started -- so on a machine with no Python this script did
+# not fail to regenerate the images, it emptied the committed ones. Observed on
+# a stock Windows: "517 deletions" in docs/preview.svg, which looks like a
+# legitimate diff and gets committed with everything else.
+PY=
+for candidate in python3 python "py -3"; do
+  # shellcheck disable=SC2086  # deliberate split: "py -3" is command + flag
+  if $candidate -c "import sys" >/dev/null 2>&1; then
+    PY=$candidate
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "make-preview: no working Python found (tried python3, python, py -3)." >&2
+  echo "  tools/ansi-to-svg.py needs one. Nothing was written; docs/ is untouched." >&2
+  exit 1
+fi
+
+# ...and even with an interpreter, the destination is never the redirection
+# target. Rendering goes to a temporary file that replaces the image only once
+# it is complete, so no failure of any kind -- not just a missing Python --
+# can leave a half-written SVG where a committed one used to be.
+render() { # $1 = destination path, $2 = title; the ANSI lines arrive on stdin
+  dest=$1
+  title=$2
+  tmp="$dest.tmp.$$"
+  # shellcheck disable=SC2086  # deliberate split, see the probe above
+  if ! $PY "$REPO/tools/ansi-to-svg.py" --title "$title" > "$tmp"; then
+    rm -f "$tmp"
+    echo "make-preview: rendering $dest failed; it was left untouched." >&2
+    exit 1
+  fi
+  mv "$tmp" "$dest"
+}
+
 # Pinned so the output is reproducible; see the note in preview.sh. TZ is
 # pinned too: the 7d window renders an absolute weekday and clock time, so
 # without this the image differs between a laptop in CEST and a CI runner in
@@ -45,8 +85,7 @@ export PREVIEW_TASKS
 {
   sh "$REPO/preview.sh" 17 23 73
   sh "$REPO/preview.sh" --sweep
-} | python3 "$REPO/tools/ansi-to-svg.py" \
-      --title "claude-statusline — a normal session, then the same line at rising usage" > "$OUT"
+} | render "$OUT" "claude-statusline — a normal session, then the same line at rising usage"
 
 DEMO2=$DEMO   # kept for the narrow-layout image further down
 unset PREVIEW_CWD
@@ -68,7 +107,7 @@ for d in "$HOME/repos/demo-project" \
          "/var/log/demo" \
          "$HOME"; do
   PREVIEW_CWD="$d" sh "$REPO/preview.sh" 17 23 73
-done | python3 "$REPO/tools/ansi-to-svg.py"          --title "dim = abbreviated, bright bold = the leaf, whole" > "$PATHS_OUT"
+done | render "$PATHS_OUT" "dim = abbreviated, bright bold = the leaf, whole"
 
 echo "==> $PATHS_OUT ($(wc -c < "$PATHS_OUT" | tr -d ' ') bytes)"
 
@@ -81,8 +120,7 @@ export PREVIEW_CWD
 {
   PREVIEW_COLUMNS=92 sh "$REPO/preview.sh" 17 23 73
   PREVIEW_COLUMNS=70 sh "$REPO/preview.sh" 17 23 73
-} | python3 "$REPO/tools/ansi-to-svg.py" \
-      --title "the same line at 92 columns, then at 70 where the reset times go" > "$NARROW_OUT"
+} | render "$NARROW_OUT" "the same line at 92 columns, then at 70 where the reset times go"
 unset PREVIEW_CWD
 
 echo "==> $NARROW_OUT ($(wc -c < "$NARROW_OUT" | tr -d ' ') bytes)"
