@@ -4,8 +4,9 @@
 # The script is *symlinked* into ~/.claude rather than copied, so a pull in
 # this repo takes effect on the next render with nothing else to run, and an
 # accidental edit of ~/.claude/statusline-command.sh lands in git instead of
-# quietly diverging. settings.json keeps pointing at the ~/.claude path, which
-# is what Claude Code writes there itself. Git Bash without developer mode has
+# quietly diverging. settings.json points at whichever config directory this
+# runs against -- CLAUDE_CONFIG_DIR when it is set, ~/.claude otherwise, and
+# never one while linking into the other. Git Bash without developer mode has
 # no symlinks and silently copies instead; that is handled below.
 #
 # Re-running this must be a no-op when nothing changed -- Windows needs a
@@ -35,13 +36,16 @@ TAB=$(printf '\t')   # the separator current_status_line puts between its two ha
 # CLAUDE_CONFIG_DIR works fine for creating the symlink -- and then goes into
 # settings.json as a path Claude Code resolves against a working directory
 # nobody chose, which is a broken status line and no error to say why.
-CLAUDE_DIR=$(cd -- "$CLAUDE_DIR" && pwd)
+CLAUDE_DIR=$(cd -- "$CLAUDE_DIR" && pwd) ||
+  { echo "cannot enter $CLAUDE_DIR" >&2; exit 1; }
 # HOME gets the same treatment, and for a sharper reason: CLAUDE_DIR has just
 # been canonicalised, so comparing it against a HOME spelled with a trailing
 # slash, a "..", or (Git Bash) as C:\Users\me while pwd says /c/Users/me finds
 # no match -- and this machine's absolute home is then baked into settings.json,
 # which is the one thing the comment below says must never happen.
-[ -z "$HOME_DIR" ] || [ ! -d "$HOME_DIR" ] || HOME_DIR=$(cd -- "$HOME_DIR" && pwd)
+if [ -n "$HOME_DIR" ] && [ -d "$HOME_DIR" ]; then
+  HOME_DIR=$(cd -- "$HOME_DIR" && pwd) || { echo "cannot enter $HOME_DIR" >&2; exit 1; }
+fi
 chmod +x "$SOURCE"
 
 TARGET="$CLAUDE_DIR/statusline-command.sh"
@@ -132,7 +136,11 @@ fi
 current_status_line() { # -> "<type><tab><command>", empty when there is neither
   case "$JSON_TOOL" in
     '') ;;
-    jq) jq -r '[(.statusLine.type // ""), (.statusLine.command // "")] | @tsv' \
+    # join, not @tsv: @tsv escapes backslashes in the values it prints, so a
+    # command holding one came back doubled, never compared equal to what is
+    # already in the file, and was rewritten on every single run. node and
+    # python return the raw string, and all three have to agree.
+    jq) jq -r '[(.statusLine.type // ""), (.statusLine.command // "")] | join("\t")' \
           "$SETTINGS" 2>/dev/null ;;
     node)
       node - "$SETTINGS" 2>/dev/null <<'NODEEOF'
@@ -212,51 +220,37 @@ json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 # to undo them. The old check compared the whole string, so any of those was
 # silently rewritten back on the next run, leaving only a .bak behind.
 #
-# Two things this has to get right, both learned the hard way. It has to know
-# every spelling of the same file -- $HOME, ${HOME} and ~ all name it, and
-# recognising only the one this script writes would rewrite the other two,
-# which is the whole defect over again. And it has to stop at a path
-# boundary: a plain substring test also matches a *sibling* whose name merely
-# starts the same, such as the statusline-command.sh.bak-<stamp> copies
-# section 1 creates, which would pin somebody to a frozen snapshot forever
-# while every re-run reported success.
-ends_path() { # $1 = haystack, $2 = a path that must appear whole in it
-  case "$1" in
-    *"$2") return 0 ;;        # at the very end of the command
-    *"$2"\"*) return 0 ;;     # closing double quote
-    *"$2"\'*) return 0 ;;     # closing single quote
-    *"$2"' '*) return 0 ;;    # an argument follows
-  esac
-  return 1
-}
-
-references_target() { # $1 = the command currently in settings.json
-  [ -n "$1" ] || return 1
-  ends_path "$1" "$TARGET" && return 0
-  [ -n "$TARGET_REL" ] || return 1
-  # shellcheck disable=SC2016,SC2088  # these are the literal spellings found
-  # in somebody's settings.json, matched as text; expanding them is the bug.
-  for form in '$HOME/' '${HOME}/' '~/'; do
-    ends_path "$1" "$form$TARGET_REL" && return 0
-  done
-  return 1
-}
-
+# The rule is deliberately narrow: keep it when it CONTAINS, verbatim, the
+# command this script would write. That covers the documented case -- a
+# CLAUDE_STATUSLINE_PLAIN=1 prefix, a wrapper, a redirect appended -- and
+# nothing speculative.
+#
+# The previous attempt tried to recognise any command that "runs our script":
+# a table of home spellings ($HOME, ${HOME}, ~) crossed with a table of path
+# terminators. Every entry missing from either table silently destroyed
+# somebody's customisation, and the tables were never going to be complete --
+# "$HOME"/... closes the quote before the slash, and a command can end at a
+# semicolon, a pipe or a tab. Worse, two of the spellings it accepted do not
+# work at all: neither ~ nor $HOME expands inside the double quotes they sit
+# in, so "already installed" was reported over a line that cannot run.
+#
+# Containing $COMMAND needs no tables and gets those cases right for free: the
+# closing quote is part of the string, so statusline-command.sh.bak-<stamp>
+# does not match, and a stale copy under /mnt/backup/... does not either. A
+# command naming the script some other way that does work -- the absolute path
+# instead of $HOME -- is rewritten once into this form and is then stable.
 if [ ! -f "$SETTINGS" ]; then
   printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "%s"\n  }\n}\n' \
     "$(json_escape "$COMMAND")" > "$SETTINGS"
   echo "==> created $SETTINGS"
-elif [ -z "$JSON_TOOL" ] && grep -qF "$(json_escape "$COMMAND")" "$SETTINGS" 2>/dev/null; then
-  # No JSON tool, but the string is already in the file: this is the Windows
-  # re-run after a pull, and answering it needs no interpreter at all. Without
-  # this the branch below fired on every single re-run of a working install
-  # and exited 1, which reads as a failure and skips the smoke test.
-  echo "==> settings.json already points at the status line"
 elif [ -z "$JSON_TOOL" ]; then
   # Hand-editing settings.json is exactly the kind of one-time step that goes
   # wrong quietly, so say the words rather than attempt a sed edit.
   echo "!! no jq, python3 or node found -- add this to $SETTINGS by hand:" >&2
-  echo "   \"statusLine\": { \"type\": \"command\", \"command\": \"$(json_escape "$COMMAND")\" }" >&2
+  # printf, not echo: dash's echo interprets backslash escapes, which would
+  # undo json_escape and hand the reader a snippet that does not parse.
+  printf '   "statusLine": { "type": "command", "command": "%s" }\n' \
+    "$(json_escape "$COMMAND")" >&2
   exit 1
 else
   # `|| CURRENT_RAW=` is not decoration: a bare assignment from a command
@@ -270,7 +264,7 @@ else
   esac
   if [ "$CURRENT" = "$COMMAND" ] && [ "$CURRENT_TYPE" = command ]; then
     echo "==> settings.json already points at the status line"
-  elif [ "$CURRENT_TYPE" = command ] && references_target "$CURRENT"; then
+  elif [ "$CURRENT_TYPE" = command ] && case "$CURRENT" in *"$COMMAND"*) true ;; *) false ;; esac; then
     # Said out loud, because "already installed" and "installed differently
     # from how I would have done it" are worth telling apart when the line
     # then renders in a way the README did not describe.
