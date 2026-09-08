@@ -12,9 +12,11 @@
 #     because "installed" was defined as "matches my string byte for byte"
 # Run:  ./tests/install-tests.sh    (exit 0 = green)
 #
-# shellcheck disable=SC2016  # the literal $HOME is the subject of this file:
-# the command in settings.json must contain those five characters, not this
-# machine's home directory, so every single-quoted "$HOME" below is deliberate.
+# shellcheck disable=SC2016,SC2088  # the literal $HOME is the subject of this
+# file: the command in settings.json must contain those five characters, not
+# this machine's home directory, so every single-quoted "$HOME" below is
+# deliberate -- and so is the unexpanded "~", which is one of the spellings a
+# person types by hand and the installer therefore has to recognise as text.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 installer="$here/../install.sh"
@@ -22,10 +24,25 @@ installer="$here/../install.sh"
 # the same spelling of the same path rather than "..' against its expansion.
 source_script="$(cd -- "$here/.." && pwd)/statusline.sh"
 pass=0; fail=0
-sandboxes=""
+# One parent directory removed by a trap, rather than a list built inside
+# home_dir: that ran in a command substitution, so every name it appended to a
+# variable died with the subshell and the cleanup loop deleted nothing. Ten
+# sandboxes leaked per run, and CLAUDE.md asks every contributor to run this.
+root=$(mktemp -d)
+trap 'rm -rf "$root"' EXIT
 
 check() { # $1 = label, $2 = haystack, $3 = needle
   if case "$2" in *"$3"*) true ;; *) false ;; esac; then
+    pass=$((pass + 1)); printf '  ok   %s\n' "$1"
+  else
+    fail=$((fail + 1)); printf '  FAIL %s\n     want: %s\n     got:  %s\n' "$1" "$3" "$2"
+  fi
+}
+
+equals() { # $1 = label, $2 = actual, $3 = expected -- exact, not substring
+  # check() below matches substrings, which is right for a rendered command and
+  # wrong for a count: "no backups" asserted with check() also passes on 10.
+  if [ "$2" = "$3" ]; then
     pass=$((pass + 1)); printf '  ok   %s\n' "$1"
   else
     fail=$((fail + 1)); printf '  FAIL %s\n     want: %s\n     got:  %s\n' "$1" "$3" "$2"
@@ -40,10 +57,8 @@ refute() { # $1 = label, $2 = haystack, $3 = needle that must NOT appear
   fi
 }
 
-home_dir() { # a fresh fake HOME, remembered so it can be removed at the end
-  local d; d=$(mktemp -d)
-  sandboxes="$sandboxes $d"
-  printf '%s' "$d"
+home_dir() { # a fresh fake HOME inside the one directory the trap removes
+  mktemp -d "$root/h.XXXXXX"
 }
 
 install_in() { # $1 = HOME, $2 = CLAUDE_CONFIG_DIR ("" = let the script default)
@@ -71,6 +86,10 @@ settings_with() { # $1 = path, $2 = the command to put there (raw, unescaped)
 
 baks() { # $1 = directory -> how many settings.json backups it holds
   find "$1" -maxdepth 1 -name 'settings.json.bak-*' | wc -l | tr -d ' '
+}
+
+tmps() { # $1 = directory -> how many half-written temporaries it holds
+  find "$1" -maxdepth 1 -name 'settings.json.tmp.*' | wc -l | tr -d ' '
 }
 
 echo "== a fresh install, with the config dir where it is expected =="
@@ -121,7 +140,7 @@ h=$(home_dir); mkdir -p "$h/.claude"
 install_in "$h" "" > /dev/null
 out=$(install_in "$h" "")
 check "says so"                "$out" "already points at the status line"
-check "no backup was created"  "$(baks "$h/.claude")" "0"
+equals "no backup was created"  "$(baks "$h/.claude")" "0"
 check "the symlink is left alone" "$out" "symlink already in place"
 
 echo "== a customised command survives =="
@@ -135,7 +154,7 @@ settings_with "$h/.claude/settings.json" "$custom"
 out=$(install_in "$h" "")
 check "the command is kept"   "$(command_in "$h/.claude/settings.json")" "$custom"
 check "and said out loud"     "$out" "custom command kept"
-check "no backup was created" "$(baks "$h/.claude")" "0"
+equals "no backup was created" "$(baks "$h/.claude")" "0"
 check "other keys are untouched" "$(cat "$h/.claude/settings.json")" '"theme": "dark"'
 
 echo "== the same script named absolutely also counts as installed =="
@@ -144,7 +163,7 @@ install_in "$h" "" > /dev/null
 settings_with "$h/.claude/settings.json" "bash \"$h/.claude/statusline-command.sh\""
 out=$(install_in "$h" "")
 check "left alone"            "$out" "custom command kept"
-check "no backup was created" "$(baks "$h/.claude")" "0"
+equals "no backup was created" "$(baks "$h/.claude")" "0"
 
 echo "== a command pointing somewhere else is replaced =="
 # The other half: leaving a command that does NOT run this script would make
@@ -153,15 +172,84 @@ h=$(home_dir); mkdir -p "$h/.claude"
 settings_with "$h/.claude/settings.json" 'bash "/opt/somebody-elses/line.sh"'
 out=$(install_in "$h" "")
 check "rewritten"                "$(command_in "$h/.claude/settings.json")" 'bash "$HOME/.claude/statusline-command.sh"'
-check "with a backup"            "$(baks "$h/.claude")" "1"
+equals "with a backup"            "$(baks "$h/.claude")" "1"
 check "and the rest of the file" "$(cat "$h/.claude/settings.json")" '"theme": "dark"'
+
+echo "== every spelling of the home directory is the same file =="
+# Recognising only the spelling this script writes would rewrite the other two,
+# which is the original defect wearing a different hat. ${HOME} and ~ are both
+# ordinary things to type into settings.json by hand.
+for spelling in '${HOME}/.claude/statusline-command.sh' '~/.claude/statusline-command.sh'; do
+  h=$(home_dir); mkdir -p "$h/.claude"
+  install_in "$h" "" > /dev/null
+  custom="CLAUDE_STATUSLINE_PLAIN=1 bash \"$spelling\""
+  settings_with "$h/.claude/settings.json" "$custom"
+  out=$(install_in "$h" "")
+  check  "$spelling is kept"   "$(command_in "$h/.claude/settings.json")" "$custom"
+  equals "and not backed up"   "$(baks "$h/.claude")" "0"
+done
+
+echo "== a sibling that merely starts the same is not this script =="
+# install.sh creates statusline-command.sh.bak-<stamp> itself when it replaces
+# a Git Bash copy. A substring test counts one of those as installed, and the
+# user stays pinned to a frozen snapshot while every re-run reports success.
+h=$(home_dir); mkdir -p "$h/.claude"
+install_in "$h" "" > /dev/null
+settings_with "$h/.claude/settings.json" 'bash "$HOME/.claude/statusline-command.sh.bak-20250101"'
+out=$(install_in "$h" "")
+check  "the stale path is replaced" "$(command_in "$h/.claude/settings.json")" \
+  'bash "$HOME/.claude/statusline-command.sh"'
+equals "with a backup"              "$(baks "$h/.claude")" "1"
+
+echo "== a statusLine Claude Code will not run is repaired, not kept =="
+# The keep-it branch preserves a configuration, so it has to check the whole
+# key: write_command always writes type "command", and any other type is a
+# status line that never runs -- reporting it as installed would be a lie.
+h=$(home_dir); mkdir -p "$h/.claude"
+install_in "$h" "" > /dev/null
+printf '{"statusLine":{"type":"static","command":"bash \\"$HOME/.claude/statusline-command.sh\\""}}\n' \
+  > "$h/.claude/settings.json"
+out=$(install_in "$h" "")
+check  "rewritten"   "$out" "updated"
+refute "type is gone" "$(cat "$h/.claude/settings.json")" '"static"'
+
+echo "== a settings.json that does not parse =="
+# The read is a bare assignment from a command substitution, so its exit status
+# is the assignment's: under `set -e` an unparseable file ended the script on
+# that line -- no diagnostic, no smoke test, and the repair below never run.
+h=$(home_dir); mkdir -p "$h/.claude"
+printf '{ "theme": "dark",\n' > "$h/.claude/settings.json"
+out=$(install_in "$h" ""); rc=$?
+equals "exit code is 1"        "$rc" "1"
+check  "and says what happened" "$out" "could not update"
+check  "the file is untouched"  "$(cat "$h/.claude/settings.json")" '{ "theme": "dark",'
+equals "no backup left behind"  "$(baks "$h/.claude")" "0"
+equals "no temporary left behind" "$(tmps "$h/.claude")" "0"
+
+echo "== HOME spelled unusually still collapses to \$HOME =="
+# CLAUDE_DIR is canonicalised, so comparing it against a HOME with a trailing
+# slash found no match and baked this machine's absolute home into the file --
+# the one thing install.sh says must never happen.
+h=$(home_dir); mkdir -p "$h/.claude"
+out=$( cd "$here/.." && env -u CLAUDE_CONFIG_DIR HOME="$h/" sh "$installer" 2>&1 )
+check  "still the \$HOME form" "$(command_in "$h/.claude/settings.json")" \
+  'bash "$HOME/.claude/statusline-command.sh"'
+refute "no absolute home"      "$(command_in "$h/.claude/settings.json")" "$h/.claude/statusline"
+
+echo "== HOME unset, CLAUDE_CONFIG_DIR set =="
+# A container or a service unit. Naming $HOME under `set -u` ended the script
+# before it created even the symlink.
+cfg=$(home_dir)
+out=$( cd "$here/.." && env -u HOME CLAUDE_CONFIG_DIR="$cfg" sh "$installer" 2>&1 )
+check "the symlink is created" "$(readlink "$cfg/statusline-command.sh")" "$source_script"
+check "and the command is absolute" "$(command_in "$cfg/settings.json")" \
+  "bash \"$cfg/statusline-command.sh\""
 
 echo "== a missing config dir is an error, not a guess =="
 h=$(home_dir)
 out=$(install_in "$h" "$h/nowhere"); rc=$?
-check "non-zero exit" "$rc" "1"
+equals "exit code is 1" "$rc" "1"
 check "and says which directory" "$out" "no Claude config dir"
 
-for d in $sandboxes; do rm -rf "$d"; done
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
