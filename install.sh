@@ -15,10 +15,19 @@
 # POSIX sh on purpose (no bashisms): same rule as the deploy scripts.
 set -eu
 
+# With CDPATH exported, `cd somedir` can land somewhere else entirely AND echo
+# the directory it chose to stdout -- which turns every `$(cd ... && pwd)` here
+# into a two-line path. Unset once, rather than guarded at each call site.
+unset CDPATH
 REPO=$(cd -- "$(dirname -- "$0")" && pwd)
 SOURCE="$REPO/statusline.sh"
-CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# HOME may legitimately be unset -- a container or a service unit that sets
+# CLAUDE_CONFIG_DIR and nothing else -- and under `set -u` naming it would end
+# the script before it did anything at all.
+HOME_DIR="${HOME:-}"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME_DIR/.claude}"
 STAMP=$(date +%Y%m%d-%H%M%S)
+TAB=$(printf '\t')   # the separator current_status_line puts between its two halves
 
 [ -f "$SOURCE" ] || { echo "missing $SOURCE" >&2; exit 1; }
 [ -d "$CLAUDE_DIR" ] || { echo "no Claude config dir at $CLAUDE_DIR" >&2; exit 1; }
@@ -27,6 +36,12 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 # settings.json as a path Claude Code resolves against a working directory
 # nobody chose, which is a broken status line and no error to say why.
 CLAUDE_DIR=$(cd -- "$CLAUDE_DIR" && pwd)
+# HOME gets the same treatment, and for a sharper reason: CLAUDE_DIR has just
+# been canonicalised, so comparing it against a HOME spelled with a trailing
+# slash, a "..", or (Git Bash) as C:\Users\me while pwd says /c/Users/me finds
+# no match -- and this machine's absolute home is then baked into settings.json,
+# which is the one thing the comment below says must never happen.
+[ -z "$HOME_DIR" ] || [ ! -d "$HOME_DIR" ] || HOME_DIR=$(cd -- "$HOME_DIR" && pwd)
 chmod +x "$SOURCE"
 
 TARGET="$CLAUDE_DIR/statusline-command.sh"
@@ -43,11 +58,18 @@ SETTINGS="$CLAUDE_DIR/settings.json"
 # command itself, and baking in this machine's home directory would make the
 # file wrong the moment the account changes. Outside the home there is nothing
 # to abbreviate against, so the absolute path goes in as it is.
-HOME_FORM=$TARGET
-# shellcheck disable=SC2016  # the literal $HOME is the point, see above
-case "$TARGET" in
-  "$HOME"/*) HOME_FORM='$HOME/'"${TARGET#"$HOME"/}" ;;
-esac
+TARGET_REL=
+if [ -n "$HOME_DIR" ]; then
+  case "$TARGET" in
+    "$HOME_DIR"/*) TARGET_REL=${TARGET#"$HOME_DIR"/} ;;
+  esac
+fi
+if [ -n "$TARGET_REL" ]; then
+  # shellcheck disable=SC2016  # the literal $HOME is the point, see above
+  HOME_FORM='$HOME/'"$TARGET_REL"
+else
+  HOME_FORM=$TARGET
+fi
 COMMAND="bash \"$HOME_FORM\""
 
 # --- 1. the script ---------------------------------------------------------
@@ -102,16 +124,23 @@ else
   JSON_TOOL=
 fi
 
-current_command() {
+# Reads BOTH halves of the key, tab separated. The type matters as much as the
+# command now that there is a branch which keeps what it finds: write_command
+# always writes {type: "command", ...}, so a statusLine with any other type is
+# one Claude Code will not run, and calling that installed would be a lie told
+# to somebody whose line then renders nothing.
+current_status_line() { # -> "<type><tab><command>", empty when there is neither
   case "$JSON_TOOL" in
     '') ;;
-    jq) jq -r '.statusLine.command // ""' "$SETTINGS" 2>/dev/null ;;
+    jq) jq -r '[(.statusLine.type // ""), (.statusLine.command // "")] | @tsv' \
+          "$SETTINGS" 2>/dev/null ;;
     node)
       node - "$SETTINGS" 2>/dev/null <<'NODEEOF'
 const fs = require("fs");
 try {
   const data = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-  console.log((data.statusLine && data.statusLine.command) || "");
+  const sl = data.statusLine || {};
+  console.log([sl.type || "", sl.command || ""].join("\t"));
 } catch (e) { /* unreadable or not JSON: treat as "not installed" */ }
 NODEEOF
       ;;
@@ -121,7 +150,8 @@ NODEEOF
 import json, io, sys
 try:
     with io.open(sys.argv[1], encoding="utf-8") as fh:
-        print(json.load(fh).get("statusLine", {}).get("command", ""))
+        sl = json.load(fh).get("statusLine", {})
+    print("\t".join([sl.get("type", "") or "", sl.get("command", "") or ""]))
 except Exception:
     pass
 PYEOF
@@ -133,10 +163,14 @@ write_command() {
   case "$JSON_TOOL" in
     jq)
       tmp="$SETTINGS.tmp.$$"
+      # Both failures remove the temporary file: a run that changed nothing
+      # must not leave anything behind either, which is the same promise the
+      # header makes about .bak files.
       jq --arg cmd "$COMMAND" \
-        '.statusLine = {type: "command", command: $cmd}' "$SETTINGS" > "$tmp" || return 1
+        '.statusLine = {type: "command", command: $cmd}' "$SETTINGS" > "$tmp" \
+        || { rm -f "$tmp"; return 1; }
       # Never move a file that failed to parse over a working settings.json.
-      jq -e . "$tmp" >/dev/null || return 1
+      jq -e . "$tmp" >/dev/null || { rm -f "$tmp"; return 1; }
       mv "$tmp" "$SETTINGS"
       ;;
     node)
@@ -177,19 +211,47 @@ json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 # somebody's deliberate choice, and re-running an installer is not a request
 # to undo them. The old check compared the whole string, so any of those was
 # silently rewritten back on the next run, leaving only a .bak behind.
-references_target() { # $1 = the command currently in settings.json
+#
+# Two things this has to get right, both learned the hard way. It has to know
+# every spelling of the same file -- $HOME, ${HOME} and ~ all name it, and
+# recognising only the one this script writes would rewrite the other two,
+# which is the whole defect over again. And it has to stop at a path
+# boundary: a plain substring test also matches a *sibling* whose name merely
+# starts the same, such as the statusline-command.sh.bak-<stamp> copies
+# section 1 creates, which would pin somebody to a frozen snapshot forever
+# while every re-run reported success.
+ends_path() { # $1 = haystack, $2 = a path that must appear whole in it
   case "$1" in
-    '') return 1 ;;
-    *"$TARGET"*)    return 0 ;;   # absolute, however it was written
-    *"$HOME_FORM"*) return 0 ;;   # with $HOME left for Claude Code to expand
-    *) return 1 ;;
+    *"$2") return 0 ;;        # at the very end of the command
+    *"$2"\"*) return 0 ;;     # closing double quote
+    *"$2"\'*) return 0 ;;     # closing single quote
+    *"$2"' '*) return 0 ;;    # an argument follows
   esac
+  return 1
+}
+
+references_target() { # $1 = the command currently in settings.json
+  [ -n "$1" ] || return 1
+  ends_path "$1" "$TARGET" && return 0
+  [ -n "$TARGET_REL" ] || return 1
+  # shellcheck disable=SC2016,SC2088  # these are the literal spellings found
+  # in somebody's settings.json, matched as text; expanding them is the bug.
+  for form in '$HOME/' '${HOME}/' '~/'; do
+    ends_path "$1" "$form$TARGET_REL" && return 0
+  done
+  return 1
 }
 
 if [ ! -f "$SETTINGS" ]; then
   printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "%s"\n  }\n}\n' \
     "$(json_escape "$COMMAND")" > "$SETTINGS"
   echo "==> created $SETTINGS"
+elif [ -z "$JSON_TOOL" ] && grep -qF "$(json_escape "$COMMAND")" "$SETTINGS" 2>/dev/null; then
+  # No JSON tool, but the string is already in the file: this is the Windows
+  # re-run after a pull, and answering it needs no interpreter at all. Without
+  # this the branch below fired on every single re-run of a working install
+  # and exited 1, which reads as a failure and skips the smoke test.
+  echo "==> settings.json already points at the status line"
 elif [ -z "$JSON_TOOL" ]; then
   # Hand-editing settings.json is exactly the kind of one-time step that goes
   # wrong quietly, so say the words rather than attempt a sed edit.
@@ -197,10 +259,18 @@ elif [ -z "$JSON_TOOL" ]; then
   echo "   \"statusLine\": { \"type\": \"command\", \"command\": \"$(json_escape "$COMMAND")\" }" >&2
   exit 1
 else
-  CURRENT=$(current_command)
-  if [ "$CURRENT" = "$COMMAND" ]; then
+  # `|| CURRENT_RAW=` is not decoration: a bare assignment from a command
+  # substitution carries its exit status, and under `set -e` an unparseable
+  # settings.json would end the script right here -- no diagnostic, no smoke
+  # test, and the repair path below never reached.
+  CURRENT_RAW=$(current_status_line) || CURRENT_RAW=
+  case "$CURRENT_RAW" in
+    *"$TAB"*) CURRENT_TYPE=${CURRENT_RAW%%"$TAB"*}; CURRENT=${CURRENT_RAW#*"$TAB"} ;;
+    *)        CURRENT_TYPE=; CURRENT= ;;
+  esac
+  if [ "$CURRENT" = "$COMMAND" ] && [ "$CURRENT_TYPE" = command ]; then
     echo "==> settings.json already points at the status line"
-  elif references_target "$CURRENT"; then
+  elif [ "$CURRENT_TYPE" = command ] && references_target "$CURRENT"; then
     # Said out loud, because "already installed" and "installed differently
     # from how I would have done it" are worth telling apart when the line
     # then renders in a way the README did not describe.
@@ -212,6 +282,9 @@ else
       echo "==> updated $SETTINGS via $JSON_TOOL (backup: $SETTINGS.bak-$STAMP)"
     else
       cp "$SETTINGS.bak-$STAMP" "$SETTINGS"
+      # The backup is the file that was just put back, so keeping it would
+      # leave a duplicate behind after a run that changed nothing.
+      rm -f "$SETTINGS.bak-$STAMP"
       echo "!! could not update $SETTINGS -- it has been left unchanged" >&2
       exit 1
     fi

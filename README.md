@@ -461,7 +461,7 @@ statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
 tests/run-tests.sh         127 assertions on the rendered line
-tests/install-tests.sh     24 assertions on install.sh, in a fake HOME
+tests/install-tests.sh     41 assertions on install.sh, in a fake HOME
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
 tools/ansi-to-svg.py       ANSI -> SVG, used by the above
