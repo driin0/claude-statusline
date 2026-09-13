@@ -199,7 +199,7 @@ wrapping further:
 
 | Width | What goes |
 |---|---|
-| ~145+ | nothing — one row |
+| ~150+ | nothing — one row |
 | below that | split into two rows |
 | gauge row still too wide | the reset times `(19:05)` `(wed 19:05)` — inferable, and ~20 columns |
 | identity row still too wide | the burn rate — the only piece on that row that is an inference rather than a fact |
@@ -207,16 +207,29 @@ wrapping further:
 Below about 58 columns the gauge row cannot give any more ground: what is left
 is the bars themselves.
 
-**The decision is made against the width the line *could* reach, not the width
-it happens to have.** Each percentage gains a column at 100%. Without that
-allowance the layout would flip between one and two rows as the numbers
-changed — a whole row appearing and disappearing, far worse than the
-one-column jitter `%3d` exists to prevent. With it, the row count changes only
-when the window is resized.
+**The decision is made against the width the *numbers* could reach, not the
+width they happen to have.** Every gauge counts its 100% column, the cost
+counts `$999.99` and the burn rate `$999/h` — reserved from the start, although
+the rate only appears after a minute of API time. Those change on their own
+while you work, and the rate goes down as well as up: counted as drawn, they
+flipped the layout between one and two rows, on every render when the rate
+wobbled across a digit. A whole row appearing and disappearing is far worse
+than the one-column jitter `%3d` exists to prevent.
+
+This replaced a fixed slack of 8 columns added to the current width, which only
+looked like the same idea. A constant added to a moving width is still a moving
+threshold: in a 133-column window, a 5h gauge ticking from 99% to 100% split
+the line with seven columns to spare.
+
+Content is counted as it is. The directory, the branch name, ahead/behind and
+the task count can each change the row count, but once, when you act — a `cd`,
+a checkout — and no reservation could cover an arbitrary branch name without
+wasting those columns the rest of the time. So the row count follows the window
+and the content, never a number ticking over.
 
 Showing *when* instead of *how long* pays a quiet second dividend here. A
 countdown changes width as the window drains — `(4h 59m)` is three columns
-wider than `(45m)` — so the slack would have to cover that too. `(HH:MM)` is
+wider than `(45m)` — so it would need a reservation of its own. `(HH:MM)` is
 seven columns whatever the clock says, which also means a nonsense timestamp
 cannot stretch the line and does not have to be suppressed to keep it in
 width.
@@ -460,7 +473,7 @@ separator instead; see Requirements.
 statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
-tests/run-tests.sh         127 assertions on the rendered line
+tests/run-tests.sh         132 assertions on the rendered line
 tests/install-tests.sh     48 assertions on install.sh, in a fake HOME
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
@@ -476,7 +489,7 @@ CLAUDE.md                  install and contribution notes, for an agent
 ./tests/run-tests.sh
 ```
 
-127 assertions over the real payload plus the shapes that break things:
+132 assertions over the real payload plus the shapes that break things:
 missing and `null` reset timestamps, a reset already in the past, `{}`, empty
 input, a pretty-printed payload, decimal percentages, an escaped quote in a
 value, a command hidden in a path, cost as an integer, a home directory
@@ -484,7 +497,8 @@ and a path below it, a width check that fails if the percentage field starts
 jittering again, a real temporary repository driven through clean / untracked
 / ahead / behind / detached, and the layout at four terminal widths — asserting
 not just the row count but that every row actually fits in the columns it was
-given.
+given, and that no number changing (a gauge at 100%, the cost, the burn rate
+appearing) moves the width at which the line splits.
 Most map to a bug that shipped at least once — see the header of the file.
 
 CI runs the suite on **macOS and Linux**. macOS is not one more platform here,

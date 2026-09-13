@@ -352,8 +352,10 @@ build_bar() {
   # The caller needs to know how wide this is without parsing escapes back
   # out of the result, so the width is computed from the pieces as they are
   # emitted: label + space + 8 cells + the number field + any parenthetical.
-  BAR_W=$(( ${#label} + 1 + 8 + 4 ))
-  [ "$pct" -ge 100 ] && BAR_W=$((BAR_W + 1))
+  # The number field counts as " 100%" whatever the value: BAR_W only feeds
+  # the layout, and a width that grew at 100% let a gauge ticking over move
+  # the split (see the layout section).
+  BAR_W=$(( ${#label} + 1 + 8 + 5 ))
   [ -n "$reset" ] && BAR_W=$(( BAR_W + 3 + ${#reset} ))
   filled=$(( (pct * 8 + 50) / 100 ))
   [ "$filled" -lt 0 ] && filled=0
@@ -464,7 +466,7 @@ printf -v GAUGE_SEP '\033[38;5;240m \302\267 '
 SEG_FG=()
 SEG_BG=()
 SEG_TXT=()
-SEG_W=()     # visible width, escapes excluded -- see the layout section
+SEG_W=()     # width for the layout: escapes excluded, numbers at their widest -- see the layout section
 SEG_ROW=()   # 0 or 1, decided once every segment exists
 add_segment() { SEG_FG+=("$1"); SEG_BG+=("$2"); SEG_TXT+=("$3"); SEG_W+=("$4"); SEG_ROW+=(0); }
 
@@ -730,18 +732,29 @@ if [ -n "$metrics_txt" ]; then
 fi
 
 # 6) session cost
+#
+# Its width is the one the segment can reach, not the one it has: room for
+# "$999.99" and "$999/h", and for the rate from the start whenever the payload
+# carries the API time it is computed from -- it only appears after a minute.
+# Both numbers move on their own while you work, and the rate moves in both
+# directions, so counting them as drawn let the layout flip back and forth
+# across a digit (see the layout section).
 COST_IDX=-1
 if [ -n "$cost_usd" ]; then
   format_cost "$cost_usd"; cost_fmt=$FC_OUT
   if [ -n "$cost_fmt" ]; then
     burn_rate "$cost_usd" "$api_ms"; rate_fmt=$BR_OUT
+    cost_reach=${#cost_fmt}; [ "$cost_reach" -lt 7 ] && cost_reach=7
+    rate_reach=${#rate_fmt}; [ "$rate_reach" -lt 6 ] && rate_reach=6
     if [ -n "$rate_fmt" ]; then
       printf -v cost_txt ' %s \033[38;5;240m\302\267 %s\033[38;5;6m ' "$cost_fmt" "$rate_fmt"
-      cost_w=$(( ${#cost_fmt} + ${#rate_fmt} + 5 ))
     else
       cost_txt=" ${cost_fmt} "
-      cost_w=$(( ${#cost_fmt} + 2 ))
     fi
+    case ${api_ms} in
+      ''|*[!0-9]*) cost_w=$((cost_reach + 2)) ;;
+      *)           cost_w=$((cost_reach + rate_reach + 5)) ;;
+    esac
     COST_IDX=${#SEG_TXT[@]}
     add_segment 6 232 "$cost_txt" "$cost_w"
   fi
@@ -760,14 +773,22 @@ fi
 # answers "where am I", the second "how much is left", and the gauge row is
 # the one whose width actually grows.
 #
-# The decision is made against the width the line COULD reach, not the width
-# it happens to have: percentages can each gain a column at 100%, and the 5h
-# countdown is three columns wider at "(4h 59m)" than at "(45m)". Without that
-# allowance the layout would flip between one and two rows as the numbers
-# changed -- far worse than the one-column jitter %3d exists to prevent. With
-# it, the row count changes only when the window is resized, which is a
-# deliberate act.
-LAYOUT_SLACK=8
+# The decision is made against the width the NUMBERS could reach, not the
+# width they happen to have: every gauge counts its 100% column, the cost
+# counts "$999.99" and the burn rate "$999/h" (see build_bar and the cost
+# segment). They change on their own while you work, and the rate goes down as
+# well as up, so counted as drawn they flipped the layout between one and two
+# rows -- on every render, with a rate wobbling across a digit. That is far
+# worse than the one-column jitter %3d exists to prevent.
+#
+# This replaced a fixed LAYOUT_SLACK of 8 added to the current width, which
+# only looked like the same idea: a constant added to a moving width is still a
+# moving threshold, so the line flipped anyway, just while it still fitted.
+#
+# Content is counted as it is. A directory, a branch name, ahead/behind, the
+# task count can each change the row count -- but once, when you act, and no
+# reservation could cover an arbitrary branch name without wasting those
+# columns the rest of the time.
 
 row_width() { # $1 = row number -> ROW_W = its rendered width
   local row=$1 i w=0 n=0
@@ -779,13 +800,13 @@ row_width() { # $1 = row number -> ROW_W = its rendered width
 
 if [ -n "${COLUMNS:-}" ] && [ "$COLUMNS" -gt 0 ] 2>/dev/null && [ "$METRICS_IDX" -ge 0 ]; then
   row_width 0
-  if [ "$((ROW_W + LAYOUT_SLACK))" -gt "$COLUMNS" ]; then
+  if [ "$ROW_W" -gt "$COLUMNS" ]; then
     SEG_ROW[METRICS_IDX]=1
     # If the gauge row still overruns, the parentheticals go: they are the
     # most expendable thing on the line (a reset time you can infer) and the
     # widest, about 21 columns between the two.
     row_width 1
-    if [ "$((ROW_W + LAYOUT_SLACK))" -gt "$COLUMNS" ]; then
+    if [ "$ROW_W" -gt "$COLUMNS" ]; then
       metrics_txt=""; metrics_w=0
       [ -n "$ctx_int" ] && gauge "$ctx_int" "ctx" ""
       [ -n "$five_hour_int" ] && gauge "$five_hour_int" "5h" ""
@@ -799,7 +820,7 @@ if [ -n "${COLUMNS:-}" ] && [ "$COLUMNS" -gt 0 ] 2>/dev/null && [ "$METRICS_IDX"
     row_width 0
     if [ "$COST_IDX" -ge 0 ] && [ "$ROW_W" -gt "$COLUMNS" ]; then
       SEG_TXT[COST_IDX]=" ${cost_fmt} "
-      SEG_W[COST_IDX]=$(( ${#cost_fmt} + 2 ))
+      SEG_W[COST_IDX]=$((cost_reach + 2))
     fi
   fi
 fi

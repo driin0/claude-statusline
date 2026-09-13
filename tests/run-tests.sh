@@ -390,6 +390,52 @@ out=$(run_at 45 "$wide")
 refute "45 sheds the burn rate"      "$out" "/h"
 check "45 keeps the cost"            "$out" "\$9.60"
 
+echo "== layout: a number changing never moves the split =="
+# The split used to be decided on the line's CURRENT width plus a fixed slack
+# of 8, and a constant added to a moving width is still a moving threshold. In
+# a 133-column window a 5h gauge ticking 99 -> 100 split the line with seven
+# columns to spare, the window resetting joined it again, and a burn rate
+# wobbling between $99/h and $100/h flipped it on every render. Content -- a
+# cd, a checkout -- may still move the split: it changes once, when you act,
+# and no reservation could cover an arbitrary branch name anyway.
+narrowest() { # $1 = predicate, $2 = payload -> narrowest COLUMNS it holds at
+  # Binary search: every predicate here holds from some width upwards.
+  local lo=1 hi=400 mid
+  while [ "$lo" -lt "$hi" ]; do
+    mid=$(( (lo + hi) / 2 ))
+    if "$1" "$(run_at "$mid" "$2")"; then hi=$mid; else lo=$((mid + 1)); fi
+  done
+  echo "$lo"
+}
+one_row()     { [ "$(rows "$1")" = 1 ]; }
+keeps_reset() { case $1 in *"(10:40)"*) true ;; *) false ;; esac; }
+numbers() { # $1 ctx%, $2 5h%, $3 7d%, $4 cost, $5 API ms -> $wide with those numbers
+  printf '{"cwd":"/x/project","model":{"display_name":"Opus 5 (1M context)"},"effort":{"level":"xhigh"},"context_window":{"used_percentage":%s},"cost":{"total_cost_usd":%s,"total_api_duration_ms":%s},"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":1788777600},"seven_day":{"used_percentage":%s,"resets_at":4102444800}}}' \
+    "$1" "$4" "$5" "$2" "$3"
+}
+same_split() { # $1 = label, $2 = predicate, $3 $4 = payloads differing only in numbers
+  local a b
+  a=$(narrowest "$2" "$3"); b=$(narrowest "$2" "$4")
+  if [ "$a" = "$b" ]; then pass=$((pass + 1)); printf '  ok   %s\n' "$1"
+  else fail=$((fail + 1)); printf '  FAIL %s: from %s columns, then from %s\n' "$1" "$a" "$b"; fi
+}
+same_split "gauges reaching 100% do not move the split" one_row \
+  "$(numbers 17 23 73 9.60 2031010)" "$(numbers 100 100 100 9.60 2031010)"
+# $1.00 over 400 s is $9/h; $999.99 over 3603604 ms is $998/h.
+same_split "cost and burn rate growing do not move it" one_row \
+  "$(numbers 17 23 73 1.00 400000)" "$(numbers 17 23 73 999.99 3603604)"
+# Under a minute of API time there is no rate at all; at 90 s it is $20/h.
+same_split "the burn rate appearing does not move it" one_row \
+  "$(numbers 17 23 73 0.50 30000)" "$(numbers 17 23 73 0.50 90000)"
+same_split "gauges reaching 100% do not shed the resets" keeps_reset \
+  "$(numbers 17 23 73 9.60 2031010)" "$(numbers 100 100 100 9.60 2031010)"
+# And nothing on top of that: a line already at its widest keeps one row until
+# it genuinely overflows. The old slack split it eight columns early.
+widest=$(numbers 100 100 100 999.99 3603604)
+w=$(cols "$(run "$widest")"); n=$(narrowest one_row "$widest")
+if [ "$n" = "$w" ]; then pass=$((pass + 1)); echo "  ok   at its widest the line splits only when it overflows"
+else fail=$((fail + 1)); echo "  FAIL a $w-column line splits below $n columns"; fi
+
 echo "== a nonsense reset timestamp cannot stretch the line =="
 # resets_at in the year 2100 rendered as "(642679h 48m)" and blew the line out
 # by ten columns. The countdown guarded against that by refusing to render
