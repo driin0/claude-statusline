@@ -22,7 +22,7 @@ gradient sweep above.
 | | `effort.level` | dim badge next to the model — nothing else says which is active |
 | | `fast_mode` | `⚡`, only while it is on |
 | Directory | `cwd` | `$HOME` → `~`, parents cut to one character |
-| Git | `git` in `cwd` | branch, `⇡`ahead `⇣`behind, `✓` clean / `✗` dirty; omitted outside a repo |
+| Git | `git` in `cwd` | branch (over 32 characters: first 12 `…` last 12, as p10k), `⇡`ahead `⇣`behind, `✓` clean / `✗` dirty; omitted outside a repo |
 | Task | `session_id` → `tasks/` | `≣ 3/7`, completed over total; omitted when no list is open |
 | `ctx` | `context_window.used_percentage` | context window filled |
 | `5h` | `rate_limits.five_hour` | usage + reset clock time |
@@ -86,6 +86,12 @@ One deliberate difference from p10k: its `SHORTEN_STRATEGY` is
 `truncate_to_unique`, which shortens each parent to the shortest prefix no
 sibling directory shares. That is prettier and needs a directory listing per
 parent on every render; this uses the first character unconditionally.
+
+A branch name longer than 32 characters is cut exactly as p10k's own git
+formatter cuts it, `branch[13,-13]="…"`: the first 12 and the last 12 around an
+ellipsis, so `fix/statusline-layout-splits-on-numbers-not-content` reads
+`fix/statusli…-not-content` in both places. The prefix (`feat/`, `fix/`) and
+the tail that tells sibling branches apart both survive.
 
 ### The task count
 
@@ -473,7 +479,7 @@ separator instead; see Requirements.
 statusline.sh              the whole status line, no dependencies
 install.sh                 symlink + settings.json wiring (POSIX sh)
 preview.sh                 render without a live session; --sweep for the gradient
-tests/run-tests.sh         132 assertions on the rendered line
+tests/run-tests.sh         136 assertions on the rendered line
 tests/install-tests.sh     48 assertions on install.sh, in a fake HOME
 tests/payload-example.json a real payload, scrubbed
 tools/make-preview.sh      regenerate the three images under docs/
@@ -489,16 +495,17 @@ CLAUDE.md                  install and contribution notes, for an agent
 ./tests/run-tests.sh
 ```
 
-132 assertions over the real payload plus the shapes that break things:
+136 assertions over the real payload plus the shapes that break things:
 missing and `null` reset timestamps, a reset already in the past, `{}`, empty
 input, a pretty-printed payload, decimal percentages, an escaped quote in a
 value, a command hidden in a path, cost as an integer, a home directory
 and a path below it, a width check that fails if the percentage field starts
 jittering again, a real temporary repository driven through clean / untracked
-/ ahead / behind / detached, and the layout at four terminal widths — asserting
-not just the row count but that every row actually fits in the columns it was
-given, and that no number changing (a gauge at 100%, the cost, the burn rate
-appearing) moves the width at which the line splits.
+/ ahead / behind / detached and onto a branch name long enough to truncate, and
+the layout at four terminal widths — asserting not just the row count but that
+every row actually fits in the columns it was given, and that no number
+changing (a gauge at 100%, the cost, the burn rate appearing) moves the width
+at which the line splits.
 Most map to a bug that shipped at least once — see the header of the file.
 
 CI runs the suite on **macOS and Linux**. macOS is not one more platform here,

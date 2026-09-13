@@ -409,9 +409,9 @@ narrowest() { # $1 = predicate, $2 = payload -> narrowest COLUMNS it holds at
 }
 one_row()     { [ "$(rows "$1")" = 1 ]; }
 keeps_reset() { case $1 in *"(10:40)"*) true ;; *) false ;; esac; }
-numbers() { # $1 ctx%, $2 5h%, $3 7d%, $4 cost, $5 API ms -> $wide with those numbers
-  printf '{"cwd":"/x/project","model":{"display_name":"Opus 5 (1M context)"},"effort":{"level":"xhigh"},"context_window":{"used_percentage":%s},"cost":{"total_cost_usd":%s,"total_api_duration_ms":%s},"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":1788777600},"seven_day":{"used_percentage":%s,"resets_at":4102444800}}}' \
-    "$1" "$4" "$5" "$2" "$3"
+numbers() { # $1 ctx%, $2 5h%, $3 7d%, $4 cost, $5 API ms, [$6 cwd] -> $wide with those numbers
+  printf '{"cwd":"%s","model":{"display_name":"Opus 5 (1M context)"},"effort":{"level":"xhigh"},"context_window":{"used_percentage":%s},"cost":{"total_cost_usd":%s,"total_api_duration_ms":%s},"rate_limits":{"five_hour":{"used_percentage":%s,"resets_at":1788777600},"seven_day":{"used_percentage":%s,"resets_at":4102444800}}}' \
+    "${6:-/x/project}" "$1" "$4" "$5" "$2" "$3"
 }
 same_split() { # $1 = label, $2 = predicate, $3 $4 = payloads differing only in numbers
   local a b
@@ -435,6 +435,34 @@ widest=$(numbers 100 100 100 999.99 3603604)
 w=$(cols "$(run "$widest")"); n=$(narrowest one_row "$widest")
 if [ "$n" = "$w" ]; then pass=$((pass + 1)); echo "  ok   at its widest the line splits only when it overflows"
 else fail=$((fail + 1)); echo "  FAIL a $w-column line splits below $n columns"; fi
+
+echo "== long branch names =="
+# Truncated the way ~/.p10k.zsh truncates them, so the prompt and the status
+# line name a branch the same way: up to 32 characters in full, beyond that
+# the first 12 and the last 12 around an ellipsis. The expected strings below
+# came from zsh running p10k's own expression, branch[13,-13]="…".
+longdir=$(mktemp -d)
+lg() { git --no-optional-locks -C "$longdir" -c user.name=t -c user.email=t@t "$@"; }
+if git init -q "$longdir" 2>/dev/null && lg commit -q --allow-empty -m one >/dev/null 2>&1; then
+  on_branch() { lg checkout -q -B "$1" >/dev/null 2>&1; git_cache_clear; }
+  on_branch feature/abcdefghijklmnopqrstuvwx
+  check "32 characters stay whole" "$(run "{\"cwd\":\"$longdir\"}")" "feature/abcdefghijklmnopqrstuvwx ✓"
+  on_branch feature/abcdefghijklmnopqrstuvwxy
+  check "33 keep the first 12 and the last 12" "$(run "{\"cwd\":\"$longdir\"}")" "feature/abcd…nopqrstuvwxy ✓"
+  # The ellipsis is three bytes, and under LC_ALL=C ${#branch} counts bytes: a
+  # width taken that way splits the line two columns before it overflows.
+  on_branch fix/statusline-layout-splits-on-numbers-not-content
+  long=$(numbers 100 100 100 999.99 3603604 "$longdir")
+  out=$(run "$long")
+  check "a long name is truncated in the full line" "$out" "fix/statusli…-not-content ✓"
+  w=$(cols "$out"); n=$(export LC_ALL=C; narrowest one_row "$long")
+  if [ "$n" = "$w" ]; then pass=$((pass + 1)); echo "  ok   the ellipsis counts as one column, in any locale"
+  else fail=$((fail + 1)); echo "  FAIL a $w-column line with a truncated branch splits below $n columns"; fi
+else
+  echo "  skip  long branch names (could not create a test repository)"
+fi
+rm -rf "$longdir"
+git_cache_clear
 
 echo "== a nonsense reset timestamp cannot stretch the line =="
 # resets_at in the year 2100 rendered as "(642679h 48m)" and blew the line out

@@ -551,8 +551,19 @@ if [ "$git_state_ok" = "0" ]; then
 fi
 
 if [ -n "$branch" ]; then
+  # A long name is cut the way ~/.p10k.zsh cuts it, so the prompt and this line
+  # name a branch the same way: up to 32 characters in full, beyond that the
+  # first 12 and the last 12 around an ellipsis -- the prefix (feat/, fix/)
+  # and the tail that tells siblings apart both survive. The width is 25 by
+  # arithmetic, not ${#branch}: under LC_ALL=C that counts the ellipsis's three
+  # bytes, and the line would split two columns before it had to.
+  branch_w=${#branch}
+  if [ "$branch_w" -gt 32 ]; then
+    printf -v branch '%s\342\200\246%s' "${branch:0:12}" "${branch: -12}"
+    branch_w=25
+  fi
   vcs=" ${branch}"
-  vcs_w=$(( ${#branch} + 1 ))
+  vcs_w=$(( branch_w + 1 ))
   # p10k's own glyphs, U+21E1 / U+21E3, in octal for the same reason as SEP.
   [ "$ahead"  != "0" ] && { printf -v _a ' \342\207\241%s' "$ahead";  vcs+=$_a; vcs_w=$((vcs_w + 2 + ${#ahead})); }
   [ "$behind" != "0" ] && { printf -v _b ' \342\207\243%s' "$behind"; vcs+=$_b; vcs_w=$((vcs_w + 2 + ${#behind})); }
