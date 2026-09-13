@@ -91,8 +91,8 @@ END {
   read -r session_id
 } <<< "$parsed"
 
-# One clock reading for the whole render: fmt_left and the git cache both
-# need "now", and a fork is a fork.
+# One clock reading for the whole render, for the git cache's freshness check.
+# A fork is a fork: anything else that needs "now" reads NOW, not date.
 NOW=$(date +%s)
 
 [ -z "$model" ] && model="Claude"

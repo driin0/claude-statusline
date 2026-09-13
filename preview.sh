@@ -14,9 +14,11 @@
 # PREVIEW_TASKS=3/7 renders the task segment with that many tasks done.
 #
 # The payload is built here rather than read from tests/payload-example.json
-# because the reset timestamps have to be in the future for the "(2h 33m)"
-# countdown to show anything; the fixture's are frozen. Keep the shape in
-# sync with tests/payload-example.json if the script starts reading new keys.
+# because the percentages are arguments (--sweep varies them), and the reset
+# times have to sit ahead of the clock the line is rendered against: the
+# fixture's are frozen, and a window whose resets_at has gone by is one Claude
+# Code would already have dropped. Keep the shape in sync with
+# tests/payload-example.json if the script starts reading new keys.
 set -u
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 

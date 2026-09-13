@@ -25,7 +25,7 @@ gradient sweep above.
 | Git | `git` in `cwd` | branch, `⇡`ahead `⇣`behind, `✓` clean / `✗` dirty; omitted outside a repo |
 | Task | `session_id` → `tasks/` | `≣ 3/7`, completed over total; omitted when no list is open |
 | `ctx` | `context_window.used_percentage` | context window filled |
-| `5h` | `rate_limits.five_hour` | usage + **time left** to the reset |
+| `5h` | `rate_limits.five_hour` | usage + reset clock time |
 | `7d` | `rate_limits.seven_day` | usage + reset weekday and clock time |
 | Cost | `cost.total_cost_usd` | session spend, truncated to cents |
 | | `cost.total_api_duration_ms` | burn rate, `$17/h` |
