@@ -440,6 +440,29 @@ Two more facts about the install, both handled by `install.sh`:
 
 Run `sh install.sh` **from Git Bash**, not from cmd or PowerShell.
 
+One thing the script cannot handle, because it is a terminal setting:
+
+- **A Nerd Font that lacks the plain glyphs.** The line assumes `▰` `▱`
+  (`U+25B0`/`U+25B1`, the gauge cells), `≣` (`U+2263`, the task icon) and
+  `✓` (`U+2713`, git clean) come from the terminal font, as they do from
+  Cascadia Mono, Menlo and MesloLGS NF. Not every Nerd Font has them:
+  GoogleSansCode NFM has none of the four, and Consolas and Ubuntu Sans Mono
+  lack the gauge cells too. When the main font lacks a glyph, **the fallback
+  decides its width**, and on Windows the fallback is not monospace. Windows
+  Terminal falls back to Segoe UI Symbol, where `▰` `▱` are 1.00 em wide
+  (`≣` 0.68, `✓` 0.75) in a 0.60 em cell, so the gauge cells overlap. macOS
+  falls back to Menlo, which draws them at 0.602 em, so the same font looks
+  fine on a Mac and the problem only shows up on Windows. The fix is to give
+  the Windows Terminal profile a fallback that is one cell wide, after the
+  main font:
+
+  ```json
+  "font": { "face": "GoogleSansCode NFM, Cascadia Mono" }
+  ```
+
+  Cascadia Mono ships with Windows Terminal, so there is nothing to install.
+  The same applies to any main font that is missing these four glyphs.
+
 ## Install
 
 ```sh

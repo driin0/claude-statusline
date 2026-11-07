@@ -49,6 +49,14 @@ only the Microsoft Store alias, so `command -v` is not evidence. If none of
 the three works it prints the exact snippet to paste and changes nothing.
 Re-running the installer when nothing changed is a no-op, backups included.
 
+If the gauge cells overlap on Windows, the terminal font is missing `▰` `▱`
+(GoogleSansCode NFM, Consolas and Ubuntu Sans Mono all lack them). Windows
+Terminal then draws them from Segoe UI Symbol at 1.00 em in a 0.60 em cell.
+Add a cell-wide fallback after the main font in the profile:
+`"font": { "face": "GoogleSansCode NFM, Cascadia Mono" }`. This is a
+terminal setting, not a script bug: do not "fix" it in `statusline.sh`. The
+README's Windows section has the measurements.
+
 Git Bash usually **copies** rather than symlinks unless developer mode is on,
 so on Windows re-run `sh install.sh` after every `git pull`. On macOS and
 Linux the symlink makes `git pull` sufficient.
